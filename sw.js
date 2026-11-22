@@ -1,7 +1,7 @@
 // Offline support: cache the app shell and serve it cache-first.
 // Only this app's own files are cached; sync requests to Supabase always go to the network.
 // Bump VERSION on every release (with js/version.js) or phones keep the old copy.
-const VERSION = 'forge-v1.1.0';
+const VERSION = 'forge-v1.1.1';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
   'js/app.js', 'js/version.js', 'js/db.js', 'js/prefs.js', 'js/backup.js', 'js/cloud.js', 'js/ui.js', 'js/util.js', 'js/history-read.js',

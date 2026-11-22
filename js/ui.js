@@ -68,9 +68,66 @@ export function sheet(render, { label = 'Dialog' } = {}) {
     const back = h('div.sheet-backdrop', { onclick: (e) => { if (e.target === back) close(); } }, box);
     root.append(back);
     document.addEventListener('keydown', onKey);
+    dragToClose(box, back, close);
     // Focus the sheet itself (for keyboard and screen-reader users) without popping up the iPhone keyboard.
     box.tabIndex = -1;
     box.focus({ preventScroll: true });
+  });
+}
+
+/**
+ * Pull a sheet down to close it, like iOS: drag from the top bar any time, or from anywhere
+ * in the sheet once it's scrolled to the top. A short or slow pull springs back.
+ */
+function dragToClose(box, back, close) {
+  let startY = 0, startX = 0, startT = 0, dy = 0, decided = false, dragging = false, fromTop = false;
+  const reset = (animate) => {
+    box.style.transition = animate ? 'transform 0.22s ease' : '';
+    back.style.transition = animate ? 'background-color 0.22s ease' : '';
+    box.style.transform = '';
+    back.style.backgroundColor = '';
+  };
+  const begin = (x, y, target) => {
+    startX = x; startY = y; startT = Date.now(); dy = 0; decided = false; dragging = false;
+    fromTop = y - box.getBoundingClientRect().top < 44 && !target.closest('input, textarea, select');
+  };
+  const move = (x, y, ev) => {
+    const ddy = y - startY, ddx = x - startX;
+    if (!decided) {
+      if (Math.abs(ddy) < 6 && Math.abs(ddx) < 6) return;
+      decided = true;
+      dragging = ddy > 0 && Math.abs(ddy) > Math.abs(ddx) && (fromTop || box.scrollTop <= 0);
+      if (dragging) { box.style.transition = 'none'; box.style.animation = 'none'; }
+    }
+    if (!dragging) return;
+    ev.preventDefault();               // stop the page from scrolling or bouncing instead
+    dy = Math.max(0, ddy);
+    box.style.transform = `translateY(${dy}px)`;
+    back.style.backgroundColor = `rgba(0, 0, 0, ${0.55 * Math.max(0.15, 1 - dy / (box.offsetHeight || 1))})`;
+  };
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    const speed = dy / Math.max(1, Date.now() - startT); // px per ms
+    if (dy > Math.min(140, box.offsetHeight * 0.3) || (speed > 0.6 && dy > 30)) {
+      box.style.transition = 'transform 0.2s ease';
+      back.style.transition = 'background-color 0.2s ease';
+      box.style.transform = `translateY(${box.offsetHeight + 40}px)`;
+      back.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+      setTimeout(() => close(), 190);
+    } else reset(true);
+  };
+  box.addEventListener('touchstart', (e) => { if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY, e.target); }, { passive: true });
+  box.addEventListener('touchmove', (e) => { if (e.touches.length === 1) move(e.touches[0].clientX, e.touches[0].clientY, e); }, { passive: false });
+  box.addEventListener('touchend', end);
+  box.addEventListener('touchcancel', () => { if (dragging) { dragging = false; reset(true); } });
+  // Mouse (desktop): drag the top bar.
+  box.addEventListener('mousedown', (e) => {
+    begin(e.clientX, e.clientY, e.target);
+    if (!fromTop) return;
+    const mm = (ev) => move(ev.clientX, ev.clientY, ev);
+    const mu = () => { end(); removeEventListener('mousemove', mm); removeEventListener('mouseup', mu); };
+    addEventListener('mousemove', mm); addEventListener('mouseup', mu);
   });
 }
 
