@@ -15,6 +15,7 @@
 //   alt       hand-picked alternatives (the app also finds same-pattern matches automatically)
 //   cues      short technique cues, written for this app
 //   area / warmup  (mobility) what it loosens, and which warm-ups it suits
+//   staple    a foundational lift the planner prefers when all else is equal
 //
 // Technique cues are this app's own wording of standard coaching points (see NSCA Essentials).
 // They are reminders, not a substitute for learning a lift in person.
@@ -27,7 +28,7 @@ const X = (id, name, cat, pattern, load, eq, primary, secondary = [], o = {}) =>
 export const EXERCISES = [
   // ───────── Horizontal push ─────────
   X('bb-bench', 'Barbell bench press', 'compound', 'horizontalPush', 'barbell', ['barbell', 'bench', 'rack'], ['chest'], ['frontDelts', 'triceps'], {
-    diff: 2, heavy: true, stress: ['shoulders', 'elbows', 'wrists'], alt: ['db-bench', 'smith-bench', 'machine-chest-press'],
+    staple: true, diff: 2, heavy: true, stress: ['shoulders', 'elbows', 'wrists'], alt: ['db-bench', 'smith-bench', 'machine-chest-press'],
     cues: ['Shoulder blades pinched back and down; keep them there', 'Feet planted, slight arch, butt on the bench', 'Lower to the lower chest with elbows about 45° from your sides', 'Press up and slightly back toward your face'],
   }),
   X('bb-incline-bench', 'Incline barbell bench press', 'compound', 'horizontalPush', 'barbell', ['barbell', 'bench', 'rack'], ['chest', 'frontDelts'], ['triceps'], {
@@ -35,7 +36,7 @@ export const EXERCISES = [
     cues: ['Bench at 30–45°', 'Shoulder blades back and down', 'Lower to the upper chest, just below the collarbone', 'Wrists stacked over elbows'],
   }),
   X('db-bench', 'Dumbbell bench press', 'compound', 'horizontalPush', 'dumbbell', ['dumbbell', 'bench'], ['chest'], ['frontDelts', 'triceps'], {
-    stress: ['shoulders'], alt: ['bb-bench', 'machine-chest-press', 'push-up'],
+    staple: true, stress: ['shoulders'], alt: ['bb-bench', 'machine-chest-press', 'push-up'],
     cues: ['Kick the dumbbells up off your knees as you lie back', 'Shoulder blades back, slight arch', 'Lower until you feel a stretch across the chest, elbows about 45°', 'Press up and slightly together without clanking'],
   }),
   X('db-incline-bench', 'Incline dumbbell press', 'compound', 'horizontalPush', 'dumbbell', ['dumbbell', 'bench'], ['chest', 'frontDelts'], ['triceps'], {
@@ -67,7 +68,7 @@ export const EXERCISES = [
     cues: ['Handles at chest height', 'Chest up, shoulders back', 'Bring the handles together with a slow squeeze', 'Control the stretch on the way back'],
   }),
   X('push-up', 'Push-up', 'accessory', 'horizontalPush', 'bodyweight', ['bodyweight'], ['chest'], ['triceps', 'frontDelts', 'abs'], {
-    stress: ['wrists', 'shoulders'], alt: ['db-bench', 'feet-elevated-push-up'],
+    staple: true, stress: ['wrists', 'shoulders'], alt: ['db-bench', 'feet-elevated-push-up'],
     cues: ['Hands slightly wider than shoulders', 'Body in one straight line; squeeze glutes and abs', 'Lower until your chest nearly touches the floor', 'Elbows about 45° from your sides'],
   }),
   X('feet-elevated-push-up', 'Feet-elevated push-up', 'accessory', 'horizontalPush', 'bodyweight', ['bodyweight'], ['chest', 'frontDelts'], ['triceps', 'abs'], {
@@ -101,7 +102,7 @@ export const EXERCISES = [
     cues: ['Kneel with the same-side knee down as the pressing arm', 'Squeeze the down-side glute; ribs down', 'Press straight up without leaning away', 'Lower under control to the shoulder'],
   }),
   X('kb-press', 'Single-arm kettlebell press', 'accessory', 'verticalPush', 'kettlebell', ['kettlebell'], ['frontDelts'], ['triceps', 'sideDelts', 'obliques'], {
-    uni: true, diff: 2, stress: ['shoulders', 'wrists'], alt: ['db-half-kneel-press', 'db-shoulder-press'],
+    staple: true, uni: true, diff: 2, stress: ['shoulders', 'wrists'], alt: ['db-half-kneel-press', 'db-shoulder-press'],
     cues: ['Start in the rack: bell resting on the forearm, wrist straight, elbow tucked', 'Squeeze glutes and the free fist', 'Press up, letting the bell rotate so the palm faces forward at the top', 'Pull it back down into the rack'],
   }),
   X('kb-push-press', 'Kettlebell push press', 'power', 'verticalPush', 'kettlebell', ['kettlebell'], ['frontDelts', 'triceps'], ['quads', 'glutes'], {
@@ -157,7 +158,7 @@ export const EXERCISES = [
 
   // ───────── Vertical pull ─────────
   X('pull-up', 'Pull-up', 'compound', 'verticalPull', 'bodyweight', ['pullupBar'], ['lats'], ['biceps', 'upperBack', 'forearms'], {
-    diff: 2, stress: ['shoulders', 'elbows'], alt: ['lat-pulldown', 'band-pull-up', 'chin-up'],
+    staple: true, diff: 2, stress: ['shoulders', 'elbows'], alt: ['lat-pulldown', 'band-pull-up', 'chin-up'],
     cues: ['Overhand grip, slightly wider than the shoulders', 'Start from a full hang, then pull the shoulders down first', 'Drive the elbows down toward your back pockets', 'Chin over the bar, then lower all the way'],
   }),
   X('chin-up', 'Chin-up', 'compound', 'verticalPull', 'bodyweight', ['pullupBar'], ['lats', 'biceps'], ['upperBack', 'forearms'], {
@@ -169,7 +170,7 @@ export const EXERCISES = [
     cues: ['Loop the band over the bar; put a knee or foot in it', 'Same technique as a pull-up', 'Use a lighter band as you get stronger'],
   }),
   X('lat-pulldown', 'Lat pulldown', 'compound', 'verticalPull', 'cable', ['cable'], ['lats'], ['biceps', 'upperBack'], {
-    alt: ['pull-up', 'band-pull-up', 'single-arm-pulldown'],
+    staple: true, alt: ['pull-up', 'band-pull-up', 'single-arm-pulldown'],
     cues: ['Thighs locked under the pad, grip a little wider than the shoulders', 'Lean back slightly; chest up', 'Pull the bar to the upper chest, elbows down and back', 'Let the arms go fully straight at the top'],
   }),
   X('single-arm-pulldown', 'Single-arm cable pulldown', 'accessory', 'verticalPull', 'cable', ['cable'], ['lats'], ['biceps'], {
@@ -191,7 +192,7 @@ export const EXERCISES = [
     cues: ['Hinge to about 45°, flat back, knees soft', 'Pull the bar to your lower ribs', 'Elbows drive back; squeeze the shoulder blades', 'Torso stays still; no heaving'],
   }),
   X('db-row', 'One-arm dumbbell row', 'compound', 'horizontalPull', 'dumbbell', ['dumbbell', 'bench'], ['lats', 'upperBack'], ['biceps', 'rearDelts'], {
-    uni: true, alt: ['seated-cable-row', 'kb-row', 'chest-supported-db-row'],
+    staple: true, uni: true, alt: ['seated-cable-row', 'kb-row', 'chest-supported-db-row'],
     cues: ['Hand and knee on the bench, back flat', 'Pull the dumbbell toward your hip', 'Let the shoulder stretch forward at the bottom', 'No twisting the torso'],
   }),
   X('chest-supported-db-row', 'Chest-supported dumbbell row', 'compound', 'horizontalPull', 'dumbbell', ['dumbbell', 'bench'], ['upperBack', 'lats'], ['rearDelts', 'biceps'], {
@@ -225,7 +226,7 @@ export const EXERCISES = [
 
   // ───────── Squat ─────────
   X('bb-back-squat', 'Barbell back squat', 'compound', 'squat', 'barbell', ['barbell', 'rack'], ['quads', 'glutes'], ['adductors', 'lowerBack', 'abs'], {
-    diff: 2, heavy: true, stress: ['knees', 'lowerBack', 'hips'], alt: ['smith-squat', 'leg-press', 'hack-squat', 'db-goblet-squat'],
+    staple: true, diff: 2, heavy: true, stress: ['knees', 'lowerBack', 'hips'], alt: ['smith-squat', 'leg-press', 'hack-squat', 'db-goblet-squat'],
     cues: ['Bar on the upper back, hands just outside shoulders', 'Big breath and brace before each rep', 'Sit down between your hips; knees follow your toes', 'Go as deep as you can with a neutral back, then drive up'],
   }),
   X('bb-front-squat', 'Barbell front squat', 'compound', 'squat', 'barbell', ['barbell', 'rack'], ['quads'], ['glutes', 'upperBack', 'abs'], {
@@ -233,11 +234,11 @@ export const EXERCISES = [
     cues: ['Bar on the front of the shoulders, elbows high', 'Stay upright; think “elbows up” out of the bottom', 'Squat deep between the hips', 'Cross-arm grip is fine if wrists are tight'],
   }),
   X('db-goblet-squat', 'Dumbbell goblet squat', 'accessory', 'squat', 'dumbbell', ['dumbbell'], ['quads', 'glutes'], ['adductors', 'abs'], {
-    stress: ['knees'], alt: ['kb-goblet-squat', 'leg-press'],
+    staple: true, stress: ['knees'], alt: ['kb-goblet-squat', 'leg-press'],
     cues: ['Hold one end of a dumbbell at your chest', 'Feet a bit wider than hips, toes slightly out', 'Sit down between the heels, elbows inside the knees', 'Chest up, drive through the whole foot'],
   }),
   X('kb-goblet-squat', 'Kettlebell goblet squat', 'accessory', 'squat', 'kettlebell', ['kettlebell'], ['quads', 'glutes'], ['adductors', 'abs'], {
-    stress: ['knees'], alt: ['db-goblet-squat', 'kb-front-squat'],
+    staple: true, stress: ['knees'], alt: ['db-goblet-squat', 'kb-front-squat'],
     cues: ['Hold the bell by the horns at your chest', 'Sit straight down between your heels', 'Use your elbows to nudge the knees out at the bottom', 'Stand tall and squeeze the glutes'],
   }),
   X('kb-front-squat', 'Double kettlebell front squat', 'compound', 'squat', 'kettlebell', ['kettlebell'], ['quads', 'glutes'], ['abs', 'upperBack'], {
@@ -272,7 +273,7 @@ export const EXERCISES = [
     cues: ['Bar over mid-foot, shins touching it when you grip', 'Pull the slack out: chest up, lats tight, back flat', 'Push the floor away; bar stays against your legs', 'Stand tall without leaning back; lower the same way'],
   }),
   X('bb-rdl', 'Barbell Romanian deadlift', 'compound', 'hinge', 'barbell', ['barbell'], ['hamstrings', 'glutes'], ['lowerBack', 'forearms'], {
-    diff: 2, heavy: true, stress: ['lowerBack'], alt: ['db-rdl', 'kb-deadlift', 'smith-rdl'],
+    staple: true, diff: 2, heavy: true, stress: ['lowerBack'], alt: ['db-rdl', 'kb-deadlift', 'smith-rdl'],
     cues: ['Start standing; soft knees', 'Push the hips back; the bar slides down your thighs', 'Stop when your hamstrings are fully stretched and your back is still flat', 'Drive the hips forward to stand'],
   }),
   X('smith-rdl', 'Smith machine Romanian deadlift', 'compound', 'hinge', 'smith', ['smith'], ['hamstrings', 'glutes'], ['lowerBack'], {
@@ -280,7 +281,7 @@ export const EXERCISES = [
     cues: ['Stand close to the bar; feet hip width', 'Hips back, bar tracks down the thighs', 'Stop at a deep hamstring stretch with a flat back', 'Hips through to stand'],
   }),
   X('db-rdl', 'Dumbbell Romanian deadlift', 'compound', 'hinge', 'dumbbell', ['dumbbell'], ['hamstrings', 'glutes'], ['lowerBack', 'forearms'], {
-    stress: ['lowerBack'], alt: ['bb-rdl', 'kb-deadlift'],
+    staple: true, stress: ['lowerBack'], alt: ['bb-rdl', 'kb-deadlift'],
     cues: ['Dumbbells in front of the thighs', 'Hips back, soft knees, flat back', 'Lower to mid-shin or until the stretch stops you', 'Squeeze the glutes to stand'],
   }),
   X('kb-deadlift', 'Kettlebell deadlift', 'accessory', 'hinge', 'kettlebell', ['kettlebell'], ['glutes', 'hamstrings'], ['lowerBack', 'quads', 'forearms'], {
@@ -322,7 +323,7 @@ export const EXERCISES = [
 
   // ───────── Ballistic (kettlebell) ─────────
   X('kb-swing', 'Kettlebell swing', 'power', 'ballistic', 'kettlebell', ['kettlebell'], ['glutes', 'hamstrings'], ['lowerBack', 'upperBack', 'abs', 'forearms'], {
-    diff: 2, stress: ['lowerBack'], reps: [10, 15], alt: ['kb-swing-1arm', 'cable-pull-through'],
+    staple: true, diff: 2, stress: ['lowerBack'], reps: [10, 15], alt: ['kb-swing-1arm', 'cable-pull-through'],
     cues: ['It’s a hinge, not a squat: hips back, shins nearly vertical', 'Hike the bell back high between the thighs', 'Snap the hips forward; the bell floats to chest height', 'Stand tall and brace at the top; arms are just ropes'],
   }),
   X('kb-swing-1arm', 'Single-arm kettlebell swing', 'power', 'ballistic', 'kettlebell', ['kettlebell'], ['glutes', 'hamstrings'], ['obliques', 'upperBack', 'forearms'], {
@@ -525,7 +526,7 @@ export const EXERCISES = [
     cues: ['Heavy dumbbells at your sides', 'Stand tall, shoulders down and back', 'Short, quick steps; walk or march in place', 'Set them down before your grip fails'],
   }),
   X('farmer-carry-kb', 'Farmer’s carry (kettlebells)', 'carry', 'carry', 'kettlebell', ['kettlebell'], ['forearms', 'upperBack'], ['abs', 'obliques', 'glutes'], {
-    measure: 'time', alt: ['farmer-carry-db', 'suitcase-carry-kb'],
+    staple: true, measure: 'time', alt: ['farmer-carry-db', 'suitcase-carry-kb'],
     cues: ['A heavy bell in each hand', 'Tall posture, ribs down', 'Steady steps; don’t let the bells swing'],
   }),
   X('suitcase-carry-kb', 'Suitcase carry', 'carry', 'carry', 'kettlebell', ['kettlebell'], ['obliques', 'forearms'], ['abs', 'upperBack'], {

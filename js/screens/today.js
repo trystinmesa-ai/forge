@@ -1,6 +1,9 @@
-// Today: resume or start a workout, last workout, time since training, recent days.
-// The recommendation (what to train and when) arrives with the planner in Phase 4.
+// Today: resume or start a workout, the recommendation (what and when, with reasons),
+// last workout, time since training, recent days.
 import { h, icon, sheet, toast } from '../ui.js';
+import * as Engine from '../engine/index.js';
+import * as L from '../data/lookup.js';
+import { planSheet } from '../plan-ui.js';
 import * as Hist from '../history-read.js';
 import * as W from '../workout.js';
 import { localDate, longDate, shortDate, relativeDays, weekday, duration, daysBetween } from '../util.js';
@@ -30,15 +33,20 @@ export default async function today({ go }) {
       h('button.btn.primary.block.lg', { onclick: () => go('workout') }, 'Resume workout'));
   }
 
-  const hero = !active && h('div.card.hero.stack',
-    h('div.kicker', 'Next session'),
-    sum.total
-      ? h('h2', sum.daysSinceLast === 0 ? 'You trained today' : `Last trained ${relativeDays(sum.daysSinceLast)}`)
-      : h('h2', 'Ready when you are'),
-    h('p.muted', { style: { margin: 0 } }, sum.total
-      ? 'Workout recommendations from your history arrive in Phase 4. For now, build your own or repeat a past workout.'
-      : 'Log your first workout and the app starts learning your strength levels. It never guesses weights you haven’t lifted.'),
-    h('button.btn.primary.block.lg', { onclick: () => startSheet(sessions, go) }, icon('bolt'), 'Start a workout'));
+  let hero = null;
+  if (!active) {
+    const { when, workout: p } = await Engine.recommend({ prefs });
+    const whenText = when.days === 0 ? 'Today' : when.days === 1 ? 'Tomorrow' : weekday(when.date);
+    const names = p.items.map((i) => L.exerciseName(i.exerciseId));
+    hero = h('div.card.hero.stack',
+      h('div.kicker', when.days === 0 ? (when.optional ? 'Bonus session' : 'Recommended today') : 'Next session'),
+      h('h2', when.days === 0 ? p.title : `${whenText} · ${p.title}`),
+      h('p.muted', { style: { margin: 0 } }, when.reason),
+      h('ul.reasons', p.reasons.filter((r) => !/^Fits about/.test(r)).slice(0, 2).map((r) => h('li', r))),
+      names.length > 0 && h('div.small.faint', `${names.slice(0, 4).join(' · ')}${names.length > 4 ? ` +${names.length - 4} more` : ''} · ~${p.estimateMin} min`),
+      h('button.btn.primary.block.lg', { onclick: () => planSheet({ go }) }, icon('bolt'), when.days === 0 ? 'Plan today’s workout' : 'Train today anyway'),
+      h('button.btn.block.ghost', { onclick: () => startSheet(sessions, go) }, 'Build my own or repeat one'));
+  }
 
   const last = sum.last && h('button.card.card-btn', { onclick: () => go('history') },
     h('div.kicker', 'Most recent workout'),
@@ -65,8 +73,8 @@ function startSheet(sessions, go) {
   return sheet((close) => h('div.stack',
     h('h2', 'Start a workout'),
     h('div.list',
-      h('div.item', { style: { opacity: 0.55 } }, icon('bolt', 'chev'),
-        h('div.grow', h('div', 'Recommended for today'), h('div.sub', 'Built from your history, recovery, time and equipment. Arrives in Phase 4.'))),
+      h('button.item', { onclick: () => { close(); planSheet({ go }); } }, icon('bolt', 'chev'),
+        h('div.grow', h('div', { style: { fontWeight: 600 } }, 'Recommended workout'), h('div.sub', 'Built from your history, recovery, time and equipment'))),
       h('button.item', { onclick: () => { close(); begin(() => W.startSession({ title: 'Workout', prefs })); } },
         h('span.add-plus', '+'), h('div.grow', h('div', { style: { fontWeight: 600 } }, 'Build my own'), h('div.sub', 'Start empty and add exercises from the library')))),
     sessions.length > 0 && h('div',

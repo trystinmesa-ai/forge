@@ -1,6 +1,6 @@
 # Forge — private training log & planner
 
-A personal, installable PWA for logging strength workouts and (from Phase 4) recommending the next one from your training history using programmed rules. No AI API, no subscriptions.
+A personal, installable PWA for logging strength workouts and recommending the next one from your training history using programmed rules. No AI API, no subscriptions.
 
 ## Architecture
 
@@ -35,8 +35,8 @@ Bump `VERSION` in **both** `js/version.js` and `sw.js`, then commit and push. Ph
 1. **Foundation**: storage, backup, sync, navigation, PWA *(done)*
 2. **Exercise library**: 140 exercises, muscle maps, alternatives, equipment setups *(done)*
 3. **Workout logging**: log sets with last time beside them, rest timer, replace/skip, resume after closing, exercise history *(done)*
-4. Training engine: recommendations, recovery, progression, replacement
+4. **Training engine**: recommended workout and date, recovery and soreness/pain handling, equipment-strict selection, time budgets, warm-ups, progression rules, regenerate *(done)*
 5. Progress charts, polish
 6. Scenario validation (the 15 test cases)
 
-See `docs/DATA.md` for the data model.
+See `docs/DATA.md` for the data model and `docs/ENGINE.md` for how recommendations are made.

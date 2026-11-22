@@ -7,6 +7,7 @@
 import * as DB from './db.js';
 import * as L from './data/lookup.js';
 import { uid, localDate } from './util.js';
+import { nextTarget } from './engine/progression.js';
 
 const sortSets = (a, b) => (a.kind === b.kind ? a.idx - b.idx : a.kind === 'warmup' ? -1 : 1);
 
@@ -65,19 +66,8 @@ export function bestSet(sets) {
   }, null);
 }
 
-// ───────── Weight steps ─────────
-/** Next weight up (dir 1) or down (dir -1) for this exercise, using your gym's jumps or kettlebell sizes. */
-export function stepWeight(ex, weight, dir, prefs) {
-  const w = Number(weight) || 0;
-  if (ex.load === 'kettlebell') {
-    const sizes = [...prefs.kettlebellSizes].sort((a, b) => a - b);
-    if (dir > 0) return sizes.find((s) => s > w) ?? sizes[sizes.length - 1];
-    return [...sizes].reverse().find((s) => s < w) ?? sizes[0];
-  }
-  const inc = prefs.increments[ex.load] ?? 5;
-  const next = Math.round((w + dir * inc) * 100) / 100;
-  return Math.max(0, next);
-}
+// Weight steps live with the progression rules; re-exported here for the screens.
+export { stepWeight } from './engine/progression.js';
 
 // ───────── Planning an entry ─────────
 function targetFor(ex, prefs) {
@@ -88,20 +78,41 @@ function targetFor(ex, prefs) {
   };
 }
 
-/** Planned sets for an entry, pre-filled from last time's weights where they exist. */
-async function plannedSets(session, entry, ex, prev) {
+/**
+ * Planned sets for an entry. Weights come from the progression rules applied to what you
+ * actually logged: last time's weights when holding, one step up or down when the rules say so,
+ * blank for an exercise you've never done.
+ */
+function plannedSets(session, entry, ex, prev, progress) {
   const n = entry.target.sets;
   const out = [];
+  const change = progress && (progress.decision === 'increase' || progress.decision === 'decrease');
   for (let i = 0; i < n; i++) {
     const p = prev?.sets[i] || prev?.sets[prev.sets.length - 1] || null;
     out.push({
       id: uid('set-'), sessionId: session.id, entryId: entry.id, entryOrder: entry.order, exerciseId: ex.id,
       date: session.date, idx: i, kind: 'working',
-      weight: p?.weight ?? null, // last time's weight for this set; blank for a new exercise
+      weight: change ? progress.weight : (p?.weight ?? null),
       reps: null, seconds: null, completed: false, completedAt: null,
     });
   }
   return out;
+}
+
+/** Two lighter ramp-up sets before the first main lift (about 50% and 75%). Excluded from progress. */
+function rampSets(session, entry, ex, weight) {
+  if (!weight || ex.load === 'kettlebell' || ex.load === 'bodyweight') return [];
+  return [0.5, 0.75].map((f, i) => ({
+    id: uid('set-'), sessionId: session.id, entryId: entry.id, entryOrder: entry.order, exerciseId: ex.id,
+    date: session.date, idx: i, kind: 'warmup', weight: Math.max(0, Math.floor((weight * f) / 5) * 5) || null,
+    reps: null, seconds: null, completed: false, completedAt: null,
+  }));
+}
+
+/** Completed working sets per workout for this exercise, newest first (for the progression rules). */
+async function recentHistory(exerciseId, excludeSessionId, n = 3) {
+  const hist = await exerciseHistory(exerciseId);
+  return hist.filter((x) => x.sessionId !== excludeSessionId).slice(0, n);
 }
 
 // ───────── Writing ─────────
@@ -109,27 +120,34 @@ async function plannedSets(session, entry, ex, prev) {
  * Start a workout. exerciseIds: initial exercises (can be empty).
  * Refuses if a workout is already in progress, so nothing is accidentally abandoned.
  */
-export async function startSession({ title = 'Workout', exerciseIds = [], checkin = null, plan = null, prefs, now = Date.now() }) {
+export async function startSession({ title = 'Workout', exerciseIds = [], items = null, checkin = null, plan = null, prefs, now = Date.now() }) {
   if (await activeSession()) throw new Error('A workout is already in progress. Resume or finish it first.');
   const session = {
     id: uid('ses-'), date: localDate(new Date(now)), startedAt: now, endedAt: null, durationMin: null,
     status: 'active', title, plan: plan || { generatedBy: 'manual' }, checkin, entries: [], notes: '',
   };
   await DB.put('sessions', session);
-  for (const id of exerciseIds) await addEntry(session.id, id, prefs);
+  const list = items || exerciseIds.map((exerciseId) => ({ exerciseId }));
+  for (let i = 0; i < list.length; i++) {
+    await addEntry(session.id, list[i].exerciseId, prefs, { sets: list[i].sets, slot: list[i].slot, ramp: !!(plan?.ramp && i === 0), today: session.date });
+  }
   return DB.get('sessions', session.id);
 }
 
-export async function addEntry(sessionId, exerciseId, prefs, { replacedFrom = null, atOrder = null } = {}) {
+export async function addEntry(sessionId, exerciseId, prefs, { replacedFrom = null, atOrder = null, sets = null, slot = null, ramp = false, today = null } = {}) {
   const ex = L.exercise(exerciseId);
   if (!ex) throw new Error('Unknown exercise');
   const session = await DB.get('sessions', sessionId);
   const prev = await previousPerformance(exerciseId, sessionId);
+  const target = targetFor(ex, prefs);
+  if (sets) target.sets = sets;
+  const progress = nextTarget(ex, L.prescription(ex, prefs.progressionStyle), await recentHistory(exerciseId, sessionId), prefs, today || session.date);
   const order = atOrder ?? (session.entries.length ? Math.max(...session.entries.map((e) => e.order)) + 1 : 0);
-  const entry = { id: uid('ent-'), exerciseId, order, target: targetFor(ex, prefs), skipped: false, replacedFrom, notes: '' };
-  const sets = await plannedSets(session, entry, ex, prev);
+  const entry = { id: uid('ent-'), exerciseId, order, target, skipped: false, replacedFrom, slot, progress, notes: '' };
+  const planned = plannedSets(session, entry, ex, prev, progress);
+  const warm = ramp ? rampSets(session, entry, ex, planned[0]?.weight) : [];
   const entries = [...session.entries, entry].sort((a, b) => a.order - b.order);
-  await DB.batch([{ store: 'sessions', put: { ...session, entries } }, ...sets.map((s) => ({ store: 'sets', put: s }))]);
+  await DB.batch([{ store: 'sessions', put: { ...session, entries } }, ...[...warm, ...planned].map((s) => ({ store: 'sets', put: s }))]);
   return entry;
 }
 
@@ -144,7 +162,7 @@ export async function replaceEntry(sessionId, entryId, newExerciseId, prefs) {
   const entries = anyDone ? session.entries : session.entries.filter((e) => e.id !== entryId);
   await DB.batch([{ store: 'sessions', put: { ...session, entries } }, ...ops]);
   await recordSubstitution(old.exerciseId, newExerciseId);
-  return addEntry(sessionId, newExerciseId, prefs, { replacedFrom: old.exerciseId, atOrder: anyDone ? old.order + 0.5 : old.order });
+  return addEntry(sessionId, newExerciseId, prefs, { replacedFrom: old.exerciseId, atOrder: anyDone ? old.order + 0.5 : old.order, sets: old.target?.sets, slot: old.slot });
 }
 
 export async function recordSubstitution(from, to) {

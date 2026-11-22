@@ -332,3 +332,17 @@ body:not(.in-workout) .rest-bar { bottom: calc(var(--tabbar-h) + var(--safe-b) +
 @media (max-width: 360px) { .set-row { grid-template-columns: 26px minmax(0, 1fr) 64px 56px 44px; gap: 6px; } }
 .rest-bar .grow { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .workout-head { margin-bottom: 12px; }
+
+/* ───────── Planner ───────── */
+.field { display: grid; gap: 6px; }
+.field > .label { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.chips.wrap { flex-wrap: wrap; margin: 0; padding: 0; overflow: visible; }
+.banner.soft { background: var(--surface-2); color: var(--text-2); }
+ul.reasons { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; color: var(--text-2); }
+ul.reasons li::marker { color: var(--accent); }
+.plan-row .pill { flex: none; white-space: nowrap; }
+.progress-line { margin: 6px 0 2px; font-size: 13px; color: var(--text-2); padding: 0 2px; }
+.progress-line b { color: var(--text-2); }
+.progress-line.p-increase b { color: var(--accent); }
+.progress-line.p-decrease b { color: var(--warn); }
+button.link-row { background: none; border: 0; padding: 0; text-align: left; color: var(--text); font: inherit; }

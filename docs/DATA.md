@@ -8,10 +8,13 @@ The built-in exercise library and vocabulary (muscles, equipment, patterns) ship
 ```
 id, date ('YYYY-MM-DD', local), startedAt, endedAt (ms), durationMin,
 status: 'active' | 'completed',
-title, focus ('upper' | 'lower' | 'full' | ...),
-plan:    { minutes, profileId, equipment[], reason, generatedBy: 'engine@version' | 'manual' },
-checkin: { sore: [region], tight: [region], pain: [region], energy: 1-5, notes },
-entries: [{ id, exerciseId, order, target: { sets, repMin, repMax, rir, weight, restSec },
+title,
+plan:    { generatedBy: 'engine' | 'manual' | 'repeat', focus, minutes, profileId, estimateMin,
+           reasons[], notes[], warmup: [exerciseId], warmupDone: [exerciseId], ramp, picks[], regenerated },
+checkin: { sore: [region], pain: [region], notes },
+entries: [{ id, exerciseId, order, slot,
+            target: { sets, reps: [min, max], setReps, seconds, rir, restSec, style },
+            progress: { decision: 'new'|'increase'|'hold'|'decrease'|'reps', weight, prevWeight, reason, rule },
             skipped, replacedFrom, notes }],
 notes
 ```

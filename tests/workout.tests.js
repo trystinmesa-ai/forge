@@ -30,9 +30,9 @@ export default function register({ describe, it, eq, ok, fresh }) {
     });
     it('the next workout shows last time’s sets and pre-fills last time’s weights', async () => {
       await fresh();
-      await logWorkout('db-bench', [[45, 15], [45, 12], [45, 14]], T0);
+      await logWorkout('db-bench', [[45, 9], [45, 8], [45, 8]], T0);
       const prev = await W.previousPerformance('db-bench');
-      eq(prev.sets.map((x) => [x.weight, x.reps]), [[45, 15], [45, 12], [45, 14]]);
+      eq(prev.sets.map((x) => [x.weight, x.reps]), [[45, 9], [45, 8], [45, 8]]);
       const s = await W.startSession({ exerciseIds: ['db-bench'], prefs, now: T0 + 2 * 864e5 });
       const sets = (await W.setsByEntry(s.id)).get(s.entries[0].id);
       eq(sets.map((x) => x.weight), [45, 45, 45], 'weights pre-filled');

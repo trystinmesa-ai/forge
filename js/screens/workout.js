@@ -1,6 +1,6 @@
 // The workout in progress: log sets quickly, see last time's numbers beside each set,
 // rest timer, replace/skip exercises, finish or discard. Every tap is saved immediately.
-import { h, icon, sheet, toast, confirm } from '../ui.js';
+import { h, icon, sheet, toast, confirm, seg } from '../ui.js';
 import * as W from '../workout.js';
 import * as L from '../data/lookup.js';
 import * as Prefs from '../prefs.js';
@@ -9,6 +9,8 @@ import { REGIONS, MUSCLES } from '../data/taxonomy.js';
 import { muscleMap } from '../musclemap.js';
 import { openExercise } from './library.js';
 import { pickExercise, exerciseHistorySheet, fmtSet } from '../sheets.js';
+import * as Engine from '../engine/index.js';
+import { ARROW } from '../plan-ui.js';
 import { shortDate, relativeDays, daysBetween, localDate } from '../util.js';
 
 let clock = null;
@@ -41,6 +43,8 @@ export default async function workout({ go, refresh }) {
   return h('div',
     head,
     h('div.stack',
+      planCard(session),
+      warmupCard(session),
       checkinCard(session),
       entries.length ? entries.map((e) => entryCard(session, e, setMap.get(e.id) || [], prevs.get(e.id), prefs, rerender)) :
         h('div.card.empty', h('h3', 'Add your first exercise'), h('p', { style: { margin: 0 } }, 'Search the library and tap to add.')),
@@ -48,6 +52,7 @@ export default async function workout({ go, refresh }) {
         await pickExercise({ onPick: (ex) => W.addEntry(session.id, ex.id, prefs) });
         rerender();
       } }, '+ Add exercise'),
+      h('button.btn.block', { onclick: () => rebuildSheet(session, rerender) }, 'Change equipment or time'),
       h('button.btn.block.ghost', { style: { color: 'var(--danger)' }, onclick: async () => {
         if (!(await confirm('Discard this workout?', 'Everything logged in it will be deleted. This can’t be undone.', { ok: 'Discard', danger: true }))) return;
         await W.discardSession(session.id); Timer.stop(); go('today');
@@ -79,7 +84,9 @@ function entryCard(session, entry, sets, prev, prefs, rerender) {
         h('div.small.muted', `${targetText}${ex.uni ? ' per side' : ''}${restText}`),
         entry.replacedFrom && h('div.small.faint', `Replacing ${L.exerciseName(entry.replacedFrom)}`)),
       h('button.icon-btn', { 'aria-label': 'Exercise options', onclick: () => entryMenu(session, entry, ex, sets, rerender) }, '⋯')),
-    prev ? h('div.prev', lastText) : h('div.prev.new', h('b', 'New exercise. '), timed
+    prev ? h('div.prev', lastText) : null,
+    prev && entry.progress && entry.progress.decision !== 'new' && h('div.progress-line', { class: `p-${entry.progress.decision}` }, h('b', ARROW[entry.progress.decision] + ' '), entry.progress.reason),
+    prev ? null : h('div.prev.new', h('b', 'New exercise. '), timed
       ? 'Pick a weight you can hold with perfect posture for the whole time.'
       : `Start light and find a weight you can do for ${t.setReps ? '15' : t.reps[1]} good reps. The app learns from what you log.`),
     effortLine(ex, t),
@@ -105,7 +112,7 @@ function setRow(session, entry, ex, s, prev, working, prefs, rerender) {
   const t = entry.target;
   const isWarm = s.kind === 'warmup';
   const prevSet = !isWarm ? prev?.sets[s.idx] : null;
-  const targetReps = isWarm ? '' : t.setReps ? String(t.setReps[s.idx] ?? t.setReps[t.setReps.length - 1]) : timed ? `${t.seconds[0]}–${t.seconds[1]}` : `${t.reps[0]}–${t.reps[1]}`;
+  const targetReps = isWarm ? '5' : t.setReps ? String(t.setReps[s.idx] ?? t.setReps[t.setReps.length - 1]) : timed ? `${t.seconds[0]}–${t.seconds[1]}` : `${t.reps[0]}–${t.reps[1]}`;
   const label = isWarm ? 'W' : String(s.idx + 1);
 
   const wIn = h('input.num', { type: 'text', inputmode: 'decimal', value: s.weight ?? '', placeholder: ex.load === 'bodyweight' ? '0' : (prevSet?.weight ?? 'lb'), 'aria-label': `Set ${label} weight` });
@@ -173,7 +180,7 @@ async function replaceSheet(session, entry, ex, rerender) {
       h('div.sub', a.primary.map((m) => MUSCLES[m]?.name).join(', '))));
   await sheet((close) => h('div.stack',
     h('div', h('div.kicker.faint.small', 'Replace'), h('h2', ex.name)),
-    h('p.small.muted', { style: { margin: 0 } }, 'Same movement pattern and similar muscles. The rest of the workout stays as it is. Whole-workout regeneration arrives with the planner in Phase 4.'),
+    h('p.small.muted', { style: { margin: 0 } }, 'Same movement pattern and similar muscles. The rest of the workout stays as it is. To rebuild everything you haven’t started, use “Change equipment or time” at the bottom of the workout.'),
     inSetup.length ? h('div', h('div.section-label', `With ${profile?.name || 'your equipment'}`), h('div.list', sortRemembered(inSetup).map((a) => item(a, close)))) : null,
     others.length ? h('div', h('div.section-label', 'Needs other equipment'), h('div.list', sortRemembered(others).map((a) => item(a, close)))) : null,
     h('button.btn.block', { onclick: async () => {
@@ -227,4 +234,63 @@ function finishSheet(session, go) {
       !p.completed && h('button.btn.danger.block', { onclick: async () => { await W.discardSession(session.id); Timer.stop(); close(); go('today'); } }, 'Discard workout'),
       h('button.btn.ghost.block', { onclick: () => close() }, 'Keep going'));
   }, { label: 'Finish workout' }));
+}
+
+// ───────── Planned workouts: why, warm-up, rebuild ─────────
+function planCard(session) {
+  const p = session.plan;
+  if (!p || p.generatedBy !== 'engine' || !(p.reasons || []).length) return null;
+  return h('details.card.checkin',
+    h('summary', h('span', 'Why this workout'), h('span.small.faint', p.estimateMin ? `~${p.estimateMin} min planned` : '')),
+    h('ul.reasons', { style: { marginTop: '8px' } }, p.reasons.map((r) => h('li', r))),
+    (p.notes || []).length > 0 && h('div.banner', p.notes.join(' ')));
+}
+
+function warmupCard(session) {
+  const p = session.plan;
+  if (!p?.warmup?.length) return null;
+  const done = new Set(p.warmupDone || []);
+  const allDone = p.warmup.every((id) => done.has(id));
+  return h('details.card.checkin', allDone ? null : { open: true },
+    h('summary', h('span', 'Warm-up'), h('span.small.faint', allDone ? 'Done' : 'About 3 min · not counted')),
+    h('div.list', { style: { marginTop: '8px' } }, p.warmup.map((id) => {
+      const ex = L.exercise(id);
+      if (!ex) return null;
+      const rx = L.prescription(ex);
+      const dose = rx.seconds ? `${rx.seconds[0]}–${rx.seconds[1]} s` : `${rx.reps[0]}–${rx.reps[1]} reps${ex.uni ? ' per side' : ''}`;
+      return h('div.item',
+        h('button.set-check', { 'aria-pressed': String(done.has(id)), 'aria-label': `${ex.name} done`, onclick: async (e) => {
+          if (done.has(id)) done.delete(id); else done.add(id);
+          e.currentTarget.setAttribute('aria-pressed', String(done.has(id)));
+          await W.updateSession(session.id, { plan: { ...p, warmupDone: [...done] } });
+        } }, '✓'),
+        h('button.grow.link-row', { onclick: () => openExercise(id) }, h('div', { style: { fontWeight: 600 } }, ex.name), h('div.sub', `${dose} · easy`)));
+    })),
+    p.ramp && h('div.small.muted', { style: { marginTop: '6px' } }, 'Then do the lighter ramp-up sets (W) on the first lift.'));
+}
+
+function rebuildSheet(session, rerender) {
+  const prefs = Prefs.get();
+  const origProfile = session.plan?.profileId || prefs.defaultProfile;
+  const origMinutes = session.plan?.minutes || prefs.defaultMinutes;
+  let profileId = origProfile, minutes = origMinutes;
+  return sheet((close) => h('div.stack',
+    h('h2', 'Change equipment or time'),
+    h('p.small.muted', { style: { margin: 0 } }, 'Rebuilds every exercise you haven’t started. Anything with a logged set stays exactly as it is.'),
+    h('div.field', h('div.label', 'Equipment'), h('div.chips', prefs.profiles.map((pr) => h('button.chip', { type: 'button', 'aria-pressed': String(pr.id === profileId), onclick: (e) => {
+      profileId = pr.id; for (const c of e.currentTarget.parentElement.children) c.setAttribute('aria-pressed', 'false');
+      e.currentTarget.setAttribute('aria-pressed', 'true');
+    } }, pr.name)))),
+    h('div.field', h('div.label', 'Total time for this workout'), seg([[30, '30'], [45, '45'], [60, '60'], [90, '90 min']], minutes, (v) => { minutes = v; })),
+    h('button.btn.primary.block.lg', { onclick: async () => {
+      try {
+        const vary = profileId === origProfile && minutes === origMinutes;
+        const r = await Engine.regenerateRemaining(session.id, { prefs, profileId, minutes, vary });
+        close();
+        toast(r.added ? `Rebuilt · ${r.added} exercise${r.added === 1 ? '' : 's'}` : 'Nothing more fits the time left');
+        rerender();
+      } catch (e) { toast(e.message, { error: true }); }
+    } }, 'Rebuild remaining exercises'),
+    h('p.small.faint', { style: { margin: 0 } }, 'Same equipment and time gives you different exercises.'),
+    h('button.btn.ghost.block', { onclick: () => close() }, 'Cancel')), { label: 'Change equipment or time' });
 }

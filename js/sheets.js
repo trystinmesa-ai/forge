@@ -62,6 +62,6 @@ export async function exerciseHistorySheet(exerciseId) {
     hist.map((x) => h('div.card',
       h('div.spread', h('h3', longDate(x.date)), h('span.small.faint', x.title || '')),
       h('div.set-chips', x.sets.map((s) => h('span.pill', fmtSet(s)))))),
-    h('p.small.faint', 'Warm-up sets aren’t shown or counted. Charts arrive in Phase 5.'),
+    h('p.small.faint', 'Warm-up sets aren’t shown or counted.'),
     h('button.btn.block', { onclick: () => close() }, 'Close')), { label: 'Exercise history' });
 }
