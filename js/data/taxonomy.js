@@ -97,3 +97,21 @@ export const CATEGORIES = {
 
 /** Standard kettlebell sizes in lb (16 kg = 35 lb, etc.). Editable in Settings. */
 export const KB_SIZES_LB = [9, 13, 18, 26, 35, 44, 53, 62, 70, 80, 88, 97, 106];
+
+/** What a mobility exercise loosens up. */
+export const MOBILITY_AREAS = {
+  hips: { name: 'Hips' },
+  ankles: { name: 'Ankles' },
+  shoulders: { name: 'Shoulders' },
+  tSpine: { name: 'Upper back (thoracic)' },
+  hamstrings: { name: 'Hamstrings' },
+  full: { name: 'Full body' },
+};
+
+export const DIFFICULTY = { 1: 'Beginner-friendly', 2: 'Intermediate', 3: 'Technical' };
+
+/** Simple display labels for how an exercise is loaded. */
+export const LOAD_TYPES = {
+  barbell: 'Barbell', dumbbell: 'Dumbbell', kettlebell: 'Kettlebell', machine: 'Machine',
+  cable: 'Cable', smith: 'Smith machine', band: 'Band', bodyweight: 'Bodyweight',
+};

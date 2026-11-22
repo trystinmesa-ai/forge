@@ -236,3 +236,34 @@ input[type="email"], input[type="password"], input[type="text"], input[type="url
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { transform: translateY(24px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- Library ---------- */
+input[type="search"], textarea {
+  width: 100%; min-height: 48px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-strong);
+  background: var(--surface-2); font-size: 16px; -webkit-appearance: none; appearance: none;
+}
+textarea { resize: vertical; line-height: 1.4; }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong);
+  background: transparent; color: var(--text-2); font-size: 14px; font-weight: 600; white-space: nowrap;
+}
+.chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.rx { font-family: var(--font-display); font-size: 22px; font-weight: 720; letter-spacing: -0.01em; margin-bottom: 2px; }
+ol.cues { margin: 4px 0 10px; padding-left: 22px; display: grid; gap: 6px; }
+ol.cues li::marker { color: var(--accent); font-weight: 700; }
+a.btn { text-decoration: none; }
+
+/* ---------- Muscle map ---------- */
+.mm-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.muscle-map { width: 100%; max-width: 300px; height: auto; margin: 0 auto; display: block; }
+.mm-base { fill: var(--surface-3); }
+.mm-secondary { fill: var(--accent); fill-opacity: 0.32; }
+.mm-primary { fill: var(--accent); }
+.mm-label { fill: var(--text-3); font-size: 8px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.mm-legend { font-size: 14px; color: var(--text-2); display: grid; gap: 4px; }
+.mm-legend b { color: var(--text); font-weight: 650; }
+.mm-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: 0; }
+.mm-dot.primary { background: var(--accent); }
+.mm-dot.secondary { background: var(--accent); opacity: 0.32; }

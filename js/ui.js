@@ -68,7 +68,9 @@ export function sheet(render, { label = 'Dialog' } = {}) {
     const back = h('div.sheet-backdrop', { onclick: (e) => { if (e.target === back) close(); } }, box);
     root.append(back);
     document.addEventListener('keydown', onKey);
-    box.querySelector('button, input')?.focus({ preventScroll: true });
+    // Focus the sheet itself (for keyboard and screen-reader users) without popping up the iPhone keyboard.
+    box.tabIndex = -1;
+    box.focus({ preventScroll: true });
   });
 }
 

@@ -4,6 +4,7 @@ import * as Backup from '../js/backup.js';
 import * as Prefs from '../js/prefs.js';
 import * as Hist from '../js/history-read.js';
 import { daysBetween, addDays, localDate } from '../js/util.js';
+import registerLibrary from './library.tests.js';
 
 const out = document.getElementById('out');
 const results = [];
@@ -165,6 +166,9 @@ describe('Dates & history summary', () => {
     eq(days.map((d) => d.sessions.length), [0, 0, 0, 1, 0, 1, 0]);
   });
 });
+
+// Library tests live in their own file.
+registerLibrary({ describe, it, eq, ok });
 
 // ---------- runner ----------
 (async () => {

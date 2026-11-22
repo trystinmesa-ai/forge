@@ -2,6 +2,7 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cloud from './cloud.js';
+import * as Lookup from './data/lookup.js';
 import { h, icon, toast } from './ui.js';
 import today from './screens/today.js';
 import history from './screens/history.js';
@@ -66,10 +67,17 @@ async function persistStorage() {
   } catch {}
 }
 
+/** Your video links, notes, hidden flags and custom exercises, applied over the built-in library. */
+async function loadLibraryEdits() {
+  Lookup.setOverrides(await DB.all('overrides'));
+  Lookup.setCustom(await DB.all('customEx'));
+}
+
 async function start() {
   buildTabbar();
   try {
     await Prefs.load();
+    await loadLibraryEdits();
   } catch (e) {
     app.replaceChildren(h('div.card', h('h3', 'Storage unavailable'),
       h('p.muted', 'This browser is blocking on-device storage (private browsing can do this). Nothing can be saved until it is allowed.'),
@@ -82,7 +90,7 @@ async function start() {
   persistStorage();
   window.addEventListener('hashchange', render);
   await render();
-  Cloud.init({ onRemote: async () => { await Prefs.load(); render(); toast('Synced from your account'); } });
+  Cloud.init({ onRemote: async () => { await Prefs.load(); await loadLibraryEdits(); render(); toast('Synced from your account'); } });
   Cloud.subscribe(() => { if (current().route === "settings") render(); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:' && !new URLSearchParams(location.search).has('nosw')) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker failed', e));

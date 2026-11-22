@@ -33,7 +33,7 @@ Bump `VERSION` in **both** `js/version.js` and `sw.js`, then commit and push. Ph
 ## Phases
 
 1. **Foundation**: storage, backup, sync, navigation, PWA *(done)*
-2. Exercise library
+2. **Exercise library**: 140 exercises, muscle maps, alternatives, equipment setups *(done)*
 3. Workout logging, history, calendar
 4. Training engine: recommendations, recovery, progression, replacement
 5. Progress charts, polish

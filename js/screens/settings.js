@@ -4,7 +4,8 @@ import * as Prefs from '../prefs.js';
 import * as DB from '../db.js';
 import * as Backup from '../backup.js';
 import * as Cloud from '../cloud.js';
-import { EQUIPMENT } from '../data/taxonomy.js';
+import { EQUIPMENT, KB_SIZES_LB } from '../data/taxonomy.js';
+import * as Lookup from '../data/lookup.js';
 import { VERSION } from '../version.js';
 
 const row = (label, sub, control) =>
@@ -41,12 +42,18 @@ export default async function settings({ go, refresh }) {
 
     h('div.section-label', 'Equipment'),
     h('div.list',
-      p.profiles.map((pr) => h('div.item',
+      p.profiles.map((pr) => h('button.item', { onclick: () => editProfile(pr, refresh) },
         h('div.grow', h('div', pr.name, pr.id === p.defaultProfile && h('span.pill.accent', { style: { marginLeft: '8px' } }, 'Default')),
-          h('div.sub', pr.equipment.map((e) => EQUIPMENT[e]?.name).filter(Boolean).join(', '))),
-        pr.id !== p.defaultProfile && h('button.btn.ghost', { style: { minHeight: '36px', padding: '0 10px', fontSize: '14px' }, onclick: () => save({ defaultProfile: pr.id }).then(refresh) }, 'Make default'))),
-      row('Weight jumps', `Barbell ${p.increments.barbell} lb · Dumbbell ${p.increments.dumbbell} lb · Machine/cable ${p.increments.machine} lb`, null)),
-    h('p.small.faint', { style: { margin: '8px 4px 0' } }, `Starting with “${profileName(p.defaultProfile)}”. Editing profiles and weight jumps arrives with the exercise library.`),
+          h('div.sub', `${pr.equipment.filter((e) => e !== 'bodyweight').map((e) => EQUIPMENT[e]?.name).filter(Boolean).join(', ') || 'No equipment'} · ${countFor(pr)} exercises`)),
+        icon('chevron', 'chev'))),
+      h('button.item', { style: { color: 'var(--accent)', fontWeight: 600 }, onclick: () => editProfile(null, refresh) }, '+ Add an equipment setup'),
+      h('button.item', { onclick: () => editIncrements(refresh) },
+        h('div.grow', h('div', 'Weight jumps'), h('div.sub', `Barbell ${p.increments.barbell} · Dumbbell ${p.increments.dumbbell} · Machine ${p.increments.machine} · Cable ${p.increments.cable} lb`)),
+        icon('chevron', 'chev')),
+      h('button.item', { onclick: () => editKettlebells(refresh) },
+        h('div.grow', h('div', 'Kettlebells you have'), h('div.sub', `${p.kettlebellSizes.join(', ')} lb`)),
+        icon('chevron', 'chev'))),
+    h('p.small.faint', { style: { margin: '8px 4px 0' } }, `Workouts start with “${profileName(p.defaultProfile)}”. You can pick a different setup each time you plan a workout.`),
 
     h('div.section-label', 'Appearance'),
     h('div.list', h('div.item', { style: { display: 'block' } },
@@ -102,7 +109,7 @@ function pickRestore(refresh) {
     if (mode === 'replace' && !(await confirm('Replace all data?', 'Everything on this device (and your account, if signed in) becomes exactly this backup. Export a backup first if you might want the current data.', { ok: 'Replace', danger: true }))) return;
     try {
       const r = await Backup.restore(res.backup, mode);
-      await Prefs.load();
+      await Prefs.load(); await reloadEdits();
       toast(r.replaced ? 'Backup restored' : `Merged: ${r.added} added, ${r.updated} updated`);
       refresh();
     } catch (e) { toast(`Restore failed, nothing was changed: ${e.message}`, { error: true, ms: 5000 }); }
@@ -114,7 +121,7 @@ function pickRestore(refresh) {
 async function eraseAll(refresh) {
   if (!(await confirm('Erase all data?', 'This deletes every workout, set and preference. It can’t be undone unless you have a backup.', { ok: 'Erase everything', danger: true }))) return;
   await DB.replaceAll({});
-  await Prefs.load();
+  await Prefs.load(); await reloadEdits();
   toast('All data erased');
   refresh();
 }
@@ -132,7 +139,7 @@ function syncCard(refresh) {
     row(u.email, label, h('button.btn.ghost', { style: { minHeight: '36px', fontSize: '14px' }, onclick: () => Cloud.sync().then(refresh) }, 'Sync now')),
     h('button.item', { onclick: async () => {
       if (!(await confirm('Sign out?', 'This removes the data from this device. It stays in your account and comes back when you sign in.', { ok: 'Sign out' }))) return;
-      await Cloud.signOut(); await Prefs.load(); refresh();
+      await Cloud.signOut(); await Prefs.load(); await reloadEdits(); refresh();
     } }, h('div.grow', 'Sign out')));
 }
 
@@ -147,7 +154,7 @@ function signInSheet(refresh) {
       try {
         const ok = await Cloud.signIn(email.value.trim(), pw.value, (other) =>
           confirm('Switch accounts?', `This device has data from ${other}. Signing in removes it from this device (it stays in that account).`, { ok: 'Switch', danger: true }));
-        if (ok) { close(); await Prefs.load(); toast('Signed in'); refresh(); }
+        if (ok) { close(); await Prefs.load(); await reloadEdits(); toast('Signed in'); refresh(); }
       } catch (ex) { err.textContent = ex.message; err.style.display = ''; }
       btn.disabled = false;
     } },
@@ -156,4 +163,77 @@ function signInSheet(refresh) {
       email, pw, err, btn,
       h('button.btn.ghost.block', { type: 'button', onclick: () => close() }, 'Cancel'));
   }, { label: 'Sign in' });
+}
+
+// ───────── Equipment editing ─────────
+const countFor = (pr) => Lookup.allExercises({ includeHidden: false }).filter((ex) => Lookup.isAvailable(ex, pr.equipment)).length;
+
+function editProfile(existing, refresh) {
+  const p = Prefs.get();
+  const draft = existing ? { ...existing, equipment: [...existing.equipment] } : { id: `p-${Date.now().toString(36)}`, name: '', equipment: ['bodyweight'] };
+  return sheet((close) => {
+    const name = h('input', { type: 'text', placeholder: 'Name (e.g. Hotel gym)', value: draft.name, maxlength: 40 });
+    const count = h('div.small.muted');
+    const updateCount = () => { count.textContent = `${countFor(draft)} exercises available with this setup`; };
+    const grid = h('div.list', Object.entries(EQUIPMENT).filter(([k]) => k !== 'bodyweight').map(([k, v]) =>
+      h('div.item', h('div.grow', v.name), toggle(draft.equipment.includes(k), (on) => {
+        draft.equipment = on ? [...new Set([...draft.equipment, k])] : draft.equipment.filter((e) => e !== k);
+        updateCount();
+      }, v.name))));
+    updateCount();
+    const isDefault = existing && existing.id === p.defaultProfile;
+    return h('div.stack',
+      h('h2', existing ? 'Edit setup' : 'New equipment setup'),
+      name,
+      h('p.small.faint', { style: { margin: 0 } }, 'Bodyweight exercises are always included. An exercise is only suggested when every piece it needs is switched on here.'),
+      grid, count,
+      h('button.btn.primary.block.lg', { onclick: async () => {
+        draft.name = name.value.trim() || 'My setup';
+        if (!draft.equipment.includes('bodyweight')) draft.equipment.push('bodyweight');
+        const profiles = existing ? p.profiles.map((x) => (x.id === draft.id ? draft : x)) : [...p.profiles, draft];
+        await Prefs.update({ profiles });
+        close(); toast('Saved'); refresh();
+      } }, 'Save'),
+      existing && !isDefault && h('button.btn.block', { onclick: async () => { await Prefs.update({ defaultProfile: existing.id }); close(); refresh(); } }, 'Make this the default'),
+      existing && !isDefault && p.profiles.length > 1 && h('button.btn.danger.block', { onclick: async () => {
+        if (!(await confirm(`Delete “${existing.name}”?`, 'Past workouts are not affected.', { ok: 'Delete', danger: true }))) return;
+        await Prefs.update({ profiles: p.profiles.filter((x) => x.id !== existing.id) });
+        close(); refresh();
+      } }, 'Delete setup'),
+      h('button.btn.ghost.block', { onclick: () => close() }, 'Cancel'));
+  }, { label: 'Equipment setup' });
+}
+
+function editIncrements(refresh) {
+  const p = Prefs.get();
+  const inc = { ...p.increments };
+  const items = [['barbell', 'Barbell', 'Total bar weight added (5 lb = 2.5 lb per side)'], ['dumbbell', 'Dumbbells', 'Gap between dumbbells'], ['machine', 'Machines', 'Weight stack step'], ['cable', 'Cables', 'Weight stack step'], ['smith', 'Smith machine', 'Total added']];
+  return sheet((close) => h('div.stack',
+    h('h2', 'Weight jumps'),
+    h('p.small.muted', { style: { margin: 0 } }, 'The smallest increase available at your gym. Progression uses these, so it never suggests a weight you can’t load.'),
+    h('div.list', items.map(([k, label, sub]) => h('div.item', h('div.grow', h('div', label), h('div.sub', sub)),
+      stepper(inc[k], { min: 2.5, max: 20, step: 2.5, format: (v) => `${v} lb`, onChange: (v) => { inc[k] = v; } })))),
+    h('button.btn.primary.block.lg', { onclick: async () => { await Prefs.update({ increments: inc }); close(); toast('Saved'); refresh(); } }, 'Save'),
+    h('button.btn.ghost.block', { onclick: () => close() }, 'Cancel')), { label: 'Weight jumps' });
+}
+
+function editKettlebells(refresh) {
+  const have = new Set(Prefs.get().kettlebellSizes);
+  return sheet((close) => h('div.stack',
+    h('h2', 'Kettlebells you have'),
+    h('p.small.muted', { style: { margin: 0 } }, 'Kettlebells jump in big steps, so progression moves to the next size you own and adds reps in between.'),
+    h('div.chips', { style: { flexWrap: 'wrap', margin: 0, padding: 0 } }, KB_SIZES_LB.map((w) => h('button.chip', {
+      type: 'button', 'aria-pressed': String(have.has(w)),
+      onclick: (e) => { if (have.has(w)) have.delete(w); else have.add(w); e.currentTarget.setAttribute('aria-pressed', String(have.has(w))); },
+    }, `${w} lb`))),
+    h('button.btn.primary.block.lg', { onclick: async () => {
+      if (!have.size) { toast('Pick at least one size', { error: true }); return; }
+      await Prefs.update({ kettlebellSizes: [...have].sort((a, b) => a - b) }); close(); toast('Saved'); refresh();
+    } }, 'Save'),
+    h('button.btn.ghost.block', { onclick: () => close() }, 'Cancel')), { label: 'Kettlebells' });
+}
+
+async function reloadEdits() {
+  Lookup.setOverrides(await DB.all('overrides'));
+  Lookup.setCustom(await DB.all('customEx'));
 }

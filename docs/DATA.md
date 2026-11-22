@@ -51,3 +51,11 @@ Each programming rule and exercise prescription carries `basis`:
 - `guideline`: established position statements (e.g. ACSM resistance-training guidance, NSCA)
 - `estimate`: reasonable practice where evidence is mixed (e.g. recovery windows per muscle size)
 - `preference`: your own choices (e.g. the 15 / 12 / max-reps scheme)
+
+## Exercise library (`js/data/exercises.js`)
+Each exercise lists: muscles (primary/secondary), **every** required piece of equipment, movement pattern, category, difficulty, whether it's one side at a time, whether it's a heavy barbell lift, how it's measured (reps or time), the body areas it loads (`stress`, used to avoid pain), hand-picked alternatives and technique cues.
+
+- **Prescriptions** come from the category defaults in `js/data/programming.js`, unless the exercise sets its own (e.g. deadlifts 3–6 reps, get-ups 1–3).
+- **Alternatives** (`lookup.alternatives`) must share the movement pattern unless hand-picked. They're ranked by shared primary muscles, category and difficulty, and limited to the equipment you have.
+- **Your edits** (video link, notes, hidden) live in the `overrides` store and sync like everything else. The built-in data is never modified.
+- **Sources** for programming rules are in `js/data/sources.js`. Each rule is labelled guideline / estimate / preference.
