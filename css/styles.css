@@ -48,7 +48,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; } /* manipulation: no double-tap zoom */
 body {
   margin: 0;
   background: var(--bg);
@@ -375,3 +375,8 @@ button.link-row { background: none; border: 0; padding: 0; text-align: left; col
 .basis.guideline { color: var(--accent); }
 .basis.estimate { color: var(--warn); }
 .basis.preference { color: var(--info); }
+
+/* ───────── Logging a past workout ───────── */
+.set-row.log-row { grid-template-columns: 30px 1fr 1fr 40px; }
+.icon-btn.small-x { width: 36px; height: 36px; font-size: 14px; color: var(--text-3); }
+.week .d button.dot { border: 0; padding: 0; cursor: pointer; }

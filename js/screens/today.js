@@ -4,13 +4,14 @@ import { h, icon, sheet, toast } from '../ui.js';
 import * as Engine from '../engine/index.js';
 import * as L from '../data/lookup.js';
 import { planSheet } from '../plan-ui.js';
+import { daySheet } from './history.js';
 import * as Hist from '../history-read.js';
 import * as W from '../workout.js';
 import { localDate, longDate, shortDate, relativeDays, weekday, duration, daysBetween } from '../util.js';
 import * as Prefs from '../prefs.js';
 import * as DB from '../db.js';
 
-export default async function today({ go }) {
+export default async function today({ go, refresh }) {
   const sessions = await Hist.completedSessions();
   const active = await W.activeSession();
   const sum = Hist.summary(sessions);
@@ -59,8 +60,11 @@ export default async function today({ go }) {
     h('div.spread', h('div.kicker', { style: { margin: 0 } }, 'Last 7 days'),
       h('span.small.muted', `${sum.in7} session${sum.in7 === 1 ? '' : 's'} · aim ~${prefs.targetSessionsPerWeek}/week`)),
     h('div.week', days.map((d) => h('div.d',
-      h('div.dot', { class: [d.sessions.length && 'on', d.date === t && 'today'].filter(Boolean).join(' '), title: d.date }),
-      weekday(d.date).slice(0, 1)))));
+      h('button.dot', { type: 'button', class: [d.sessions.length && 'on', d.date === t && 'today'].filter(Boolean).join(' '),
+        'aria-label': `${longDate(d.date)}${d.sessions.length ? `, ${d.sessions.length} workout${d.sessions.length === 1 ? '' : 's'}` : ', no workout'}`,
+        onclick: () => daySheet(d.date, { go, refresh }) }),
+      weekday(d.date).slice(0, 1)))),
+    h('div.small.faint', { style: { marginTop: '8px' } }, 'Tap a day to see it or add a workout you did.'));
 
   return h('div', head, h('div.stack', resume, hero, last, recent));
 }

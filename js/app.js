@@ -10,6 +10,7 @@ import library from './screens/library.js';
 import progress from './screens/progress.js';
 import settings from './screens/settings.js';
 import workout from './screens/workout.js';
+import log from './screens/log.js';
 import * as Timer from './timer.js';
 
 export { VERSION } from './version.js';
@@ -20,7 +21,7 @@ const TABS = [
   { id: 'library', label: 'Library', icon: 'library', render: library },
   { id: 'progress', label: 'Progress', icon: 'progress', render: progress },
 ];
-const ROUTES = { ...Object.fromEntries(TABS.map((t) => [t.id, t.render])), settings, workout };
+const ROUTES = { ...Object.fromEntries(TABS.map((t) => [t.id, t.render])), settings, workout, log };
 
 const app = document.getElementById('app');
 
@@ -35,8 +36,8 @@ let renderToken = 0;
 export async function render() {
   const { route, args } = current();
   const token = ++renderToken;
-  const tabRoute = route === 'settings' || route === 'workout' ? 'today' : route;
-  document.body.classList.toggle('in-workout', route === 'workout');
+  const tabRoute = route === 'settings' || route === 'workout' ? 'today' : route === 'log' ? 'history' : route;
+  document.body.classList.toggle('in-workout', route === 'workout' || route === 'log');
   for (const a of document.querySelectorAll('.tabbar a')) {
     if (a.dataset.id === tabRoute) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
@@ -76,7 +77,14 @@ async function loadLibraryEdits() {
   Lookup.setCustom(await DB.all('customEx'));
 }
 
+/** Keep the app fixed to the screen like a native app: no pinch zoom (iOS ignores user-scalable=no). */
+function lockZoom() {
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+}
+
 async function start() {
+  lockZoom();
   buildTabbar();
   try {
     await Prefs.load();

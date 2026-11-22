@@ -6,7 +6,7 @@
 // Finishing keeps only completed sets: planned-but-not-done sets are not performance.
 import * as DB from './db.js';
 import * as L from './data/lookup.js';
-import { uid, localDate, daysBetween } from './util.js';
+import { uid, localDate, daysBetween, parseDate } from './util.js';
 import { nextTarget } from './engine/progression.js';
 
 const sortSets = (a, b) => (a.kind === b.kind ? a.idx - b.idx : a.kind === 'warmup' ? -1 : 1);
@@ -271,4 +271,86 @@ export async function repeatSession(pastId, prefs) {
   const past = await DB.get('sessions', pastId);
   const ids = past.entries.filter((e) => !e.skipped && L.exercise(e.exerciseId)).sort((a, b) => a.order - b.order).map((e) => e.exerciseId);
   return startSession({ title: past.title || 'Workout', exerciseIds: ids, prefs, plan: { generatedBy: 'repeat', from: pastId } });
+}
+
+// ───────── Workouts logged after the fact, and editing finished ones ─────────
+/** Editable copy of a finished workout: its exercises and completed working sets. */
+export async function loadForEdit(sessionId) {
+  const session = await DB.get('sessions', sessionId);
+  if (!session || session.status !== 'completed') throw new Error('That workout can’t be edited.');
+  const sets = (await DB.byIndex('sets', 'sessionId', sessionId)).filter((s) => s.completed && s.kind === 'working');
+  const entries = session.entries.slice().sort((a, b) => a.order - b.order).map((e) => ({
+    entryId: e.id, exerciseId: e.exerciseId,
+    sets: sets.filter((s) => s.entryId === e.id).sort((a, b) => a.idx - b.idx)
+      .map((s) => ({ id: s.id, weight: s.weight, reps: s.reps, seconds: s.seconds })),
+  })).filter((e) => e.sets.length);
+  return {
+    sessionId, date: session.date, title: session.title || 'Workout', durationMin: session.durationMin ?? null,
+    notes: session.notes || '', entries,
+  };
+}
+
+const filled = (s) => (s.reps != null && s.reps > 0) || (s.seconds != null && s.seconds > 0);
+
+/**
+ * Save a workout you did without logging it live, or save edits to a finished one.
+ * draft: { sessionId?, date, title, durationMin, notes, entries: [{ entryId?, exerciseId, sets: [{ id?, weight, reps, seconds }] }] }
+ * Sets without reps or seconds are ignored. Only what you enter is saved: nothing is estimated.
+ * Warm-up sets of exercises you keep are left as they were.
+ */
+export async function savePastWorkout(draft, prefs, { now = Date.now() } = {}) {
+  if (!draft.date || draft.date > localDate(new Date(now))) throw new Error('Pick a date that isn’t in the future.');
+  const entries = draft.entries.map((e) => ({ ...e, sets: e.sets.filter(filled) })).filter((e) => e.sets.length && L.exercise(e.exerciseId));
+  if (!entries.length) throw new Error('Add at least one set with reps (or seconds) before saving.');
+  const existing = draft.sessionId ? await DB.get('sessions', draft.sessionId) : null;
+  if (draft.sessionId && (!existing || existing.status !== 'completed')) throw new Error('That workout can’t be edited.');
+  const durationMin = Math.max(1, Math.round(Number(draft.durationMin) || 45));
+  // When it happened: keep the original time if the day is unchanged; a workout logged for
+  // today counts as just finished; earlier days default to late afternoon.
+  let startedAt;
+  if (existing && existing.date === draft.date) startedAt = existing.startedAt;
+  else if (draft.date === localDate(new Date(now))) startedAt = now - durationMin * 60000;
+  else startedAt = parseDate(draft.date).getTime() + 17 * 3.6e6;
+  const sessionId = existing?.id || uid('ses-');
+  const oldSets = existing ? await DB.byIndex('sets', 'sessionId', sessionId) : [];
+  const oldEntries = new Map((existing?.entries || []).map((e) => [e.id, e]));
+
+  const newEntries = [];
+  const putSets = [];
+  const keepIds = new Set();
+  let k = 0;
+  entries.forEach((d, order) => {
+    const ex = L.exercise(d.exerciseId);
+    const prev = d.entryId && oldEntries.get(d.entryId)?.exerciseId === d.exerciseId ? oldEntries.get(d.entryId) : null;
+    const entryId = prev?.id || uid('ent-');
+    const target = { ...(prev?.target || targetFor(ex, prefs)), sets: d.sets.length };
+    newEntries.push({ ...(prev || { replacedFrom: null, slot: null, progress: null, notes: '' }), id: entryId, exerciseId: d.exerciseId, order, target, skipped: false });
+    d.sets.forEach((s, idx) => {
+      const id = s.id && oldSets.some((o) => o.id === s.id && o.entryId === entryId) ? s.id : uid('set-');
+      keepIds.add(id);
+      putSets.push({
+        id, sessionId, entryId, entryOrder: order, exerciseId: d.exerciseId, date: draft.date, idx, kind: 'working',
+        weight: s.weight == null || s.weight === '' ? null : Number(s.weight),
+        reps: s.reps == null ? null : Math.round(s.reps), seconds: s.seconds == null ? null : Math.round(s.seconds),
+        completed: true, completedAt: startedAt + (++k) * 3 * 60000,
+      });
+    });
+  });
+  const kept = new Set(newEntries.map((e) => e.id));
+  const ops = [];
+  for (const o of oldSets) {
+    if (keepIds.has(o.id)) continue;
+    if (o.kind === 'warmup' && kept.has(o.entryId)) {
+      const order = newEntries.find((e) => e.id === o.entryId).order;
+      ops.push({ store: 'sets', put: { ...o, date: draft.date, entryOrder: order } });
+    } else ops.push({ store: 'sets', del: o.id });
+  }
+  const session = {
+    ...(existing || { plan: { generatedBy: 'manual', loggedAfter: true }, checkin: null }),
+    id: sessionId, date: draft.date, status: 'completed', title: (draft.title || '').trim() || 'Workout',
+    startedAt, endedAt: startedAt + durationMin * 60000, durationMin, notes: (draft.notes || '').trim(), entries: newEntries,
+    ...(existing ? { editedAt: now } : {}),
+  };
+  await DB.batch([{ store: 'sessions', put: session }, ...putSets.map((s) => ({ store: 'sets', put: s })), ...ops]);
+  return DB.get('sessions', sessionId);
 }

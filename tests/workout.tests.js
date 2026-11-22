@@ -163,4 +163,69 @@ export default function register({ describe, it, eq, ok, fresh }) {
       eq(W.stepWeight({ load: 'kettlebell' }, 30, 1, { ...prefs, kettlebellSizes: [26, 53] }), 53);
     });
   });
+
+  describe('Workouts logged afterwards, and editing', () => {
+    const past = (over = {}) => ({ date: '2026-11-10', title: 'Gym', durationMin: 50, notes: '', entries: [
+      { exerciseId: 'db-bench', sets: [{ weight: 50, reps: 10 }, { weight: 50, reps: 9 }, { weight: null, reps: null }] },
+      { exerciseId: 'push-up', sets: [{ weight: null, reps: 20 }] },
+    ], ...over });
+    it('saves only the sets you filled in, as a finished workout on that day', async () => {
+      await fresh();
+      const s = await W.savePastWorkout(past(), prefs, { now: T0 });
+      eq([s.status, s.date, s.durationMin, s.title], ['completed', '2026-11-10', 50, 'Gym']);
+      const sets = await DB.byIndex('sets', 'sessionId', s.id);
+      eq(sets.length, 3, 'the empty row is ignored');
+      ok(sets.every((x) => x.completed && x.kind === 'working' && x.date === '2026-11-10'));
+      const prev = await W.previousPerformance('db-bench');
+      eq(prev.sets.map((x) => [x.weight, x.reps]), [[50, 10], [50, 9]]);
+    });
+    it('it feeds progression like any other workout', async () => {
+      await fresh();
+      await W.savePastWorkout(past({ entries: [{ exerciseId: 'db-bench', sets: [{ weight: 50, reps: 10 }, { weight: 50, reps: 10 }, { weight: 50, reps: 10 }] }] }), prefs, { now: T0 });
+      const s = await W.startSession({ exerciseIds: ['db-bench'], prefs, now: T0 });
+      eq(s.entries[0].progress.decision, 'increase');
+    });
+    it('refuses future dates and workouts with no sets', async () => {
+      await fresh();
+      let a = '', b = '';
+      try { await W.savePastWorkout(past({ date: '2026-12-31' }), prefs, { now: T0 }); } catch (e) { a = e.message; }
+      try { await W.savePastWorkout(past({ entries: [{ exerciseId: 'db-bench', sets: [{ weight: 50, reps: null }] }] }), prefs, { now: T0 }); } catch (e) { b = e.message; }
+      ok(/future/.test(a), a);
+      ok(/at least one set/.test(b), b);
+      eq(await DB.count('sessions'), 0);
+    });
+    it('a workout logged for today counts as just finished (so recovery sees it)', async () => {
+      await fresh();
+      const s = await W.savePastWorkout(past({ date: '2026-11-16' }), prefs, { now: T0 });
+      eq(s.startedAt, T0 - 50 * 60000);
+    });
+    it('editing: change sets, remove an exercise, add one, move the day; warm-ups of kept exercises stay', async () => {
+      await fresh();
+      const live = await W.startSession({ exerciseIds: ['db-bench', 'db-curl'], prefs, now: T0 });
+      const bench = live.entries[0];
+      const warm = await W.addSet(live.id, bench.id, { kind: 'warmup' });
+      await W.updateSet(warm.id, { weight: 25, reps: 8, completed: true });
+      for (const x of (await W.setsByEntry(live.id)).get(bench.id).filter((y) => y.kind === 'working')) await W.updateSet(x.id, { weight: 45, reps: 8, completed: true });
+      const c = (await W.setsByEntry(live.id)).get(live.entries[1].id)[0];
+      await W.updateSet(c.id, { weight: 20, reps: 12, completed: true });
+      await W.finishSession(live.id, { now: T0 + 3e6 });
+
+      const d = await W.loadForEdit(live.id);
+      eq(d.entries.map((e) => e.exerciseId), ['db-bench', 'db-curl']);
+      d.entries[0].sets[0].reps = 10;                    // fix a typo
+      d.entries[0].sets.pop();                           // drop a set
+      d.entries.splice(1, 1);                            // remove curls
+      d.entries.push({ entryId: null, exerciseId: 'db-row', sets: [{ weight: 55, reps: 10 }] });
+      d.date = '2026-11-15';
+      const saved = await W.savePastWorkout(d, prefs, { now: T0 + 4e6 });
+      eq(saved.id, live.id, 'same workout, not a copy');
+      eq(saved.entries.map((e) => e.exerciseId), ['db-bench', 'db-row']);
+      const sets = await DB.byIndex('sets', 'sessionId', live.id);
+      eq(sets.filter((x) => x.kind === 'working' && x.exerciseId === 'db-bench').sort((a, b) => a.idx - b.idx).map((x) => x.reps), [10, 8]);
+      eq(sets.filter((x) => x.exerciseId === 'db-curl').length, 0, 'removed exercise’s sets deleted');
+      eq(sets.filter((x) => x.kind === 'warmup').map((x) => x.weight), [25], 'warm-up kept');
+      ok(sets.every((x) => x.date === '2026-11-15'), 'moved to the new day');
+      ok(saved.editedAt > 0);
+    });
+  });
 }
