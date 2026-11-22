@@ -6,7 +6,7 @@
 // Finishing keeps only completed sets: planned-but-not-done sets are not performance.
 import * as DB from './db.js';
 import * as L from './data/lookup.js';
-import { uid, localDate } from './util.js';
+import { uid, localDate, daysBetween } from './util.js';
 import { nextTarget } from './engine/progression.js';
 
 const sortSets = (a, b) => (a.kind === b.kind ? a.idx - b.idx : a.kind === 'warmup' ? -1 : 1);
@@ -141,7 +141,10 @@ export async function addEntry(sessionId, exerciseId, prefs, { replacedFrom = nu
   const prev = await previousPerformance(exerciseId, sessionId);
   const target = targetFor(ex, prefs);
   if (sets) target.sets = sets;
-  const progress = nextTarget(ex, L.prescription(ex, prefs.progressionStyle), await recentHistory(exerciseId, sessionId), prefs, today || session.date);
+  const day = today || session.date;
+  const lastAny = (await DB.byIndex('sessions', 'status', 'completed')).reduce((m, s) => (s.date > m ? s.date : m), '');
+  const daysSinceAnyWorkout = lastAny ? daysBetween(lastAny, day) : 0;
+  const progress = nextTarget(ex, L.prescription(ex, prefs.progressionStyle), await recentHistory(exerciseId, sessionId), prefs, day, { daysSinceAnyWorkout });
   const order = atOrder ?? (session.entries.length ? Math.max(...session.entries.map((e) => e.order)) + 1 : 0);
   const entry = { id: uid('ent-'), exerciseId, order, target, skipped: false, replacedFrom, slot, progress, notes: '' };
   const planned = plannedSets(session, entry, ex, prev, progress);

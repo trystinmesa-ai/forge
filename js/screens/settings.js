@@ -10,7 +10,7 @@ import { VERSION } from '../version.js';
 import { RULES } from '../data/programming.js';
 import { SOURCES, BASIS } from '../data/sources.js';
 import { RECOVERY_HOURS } from '../engine/recovery.js';
-import { LONG_BREAK_DAYS, VERY_LONG_BREAK_DAYS, BIG_JUMP } from '../engine/progression.js';
+import { LONG_BREAK_DAYS, VERY_LONG_BREAK_DAYS, BIG_JUMP, RETURN_DAYS } from '../engine/progression.js';
 import { READY, MAX_DAYS_IN_A_ROW } from '../engine/schedule.js';
 
 const row = (label, sub, control) =>
@@ -257,7 +257,7 @@ function howItWorks() {
   const engine = [
     ['estimate', `Recovery: about ${RECOVERY_HOURS.large} h for big muscles (legs, chest, back), ${RECOVERY_HOURS.medium} h for medium and ${RECOVERY_HOURS.small} h for small ones, longer after bigger sessions. A session type counts as ready at ${Math.round(READY * 100)}% recovered. Soreness you report overrides this.`],
     ['estimate', `No more than ${MAX_DAYS_IN_A_ROW} training days in a row. Missed days are never penalized; the next workout simply adapts.`],
-    ['estimate', `After ${LONG_BREAK_DAYS}+ days away an exercise keeps its weight; after ${VERY_LONG_BREAK_DAYS}+ days it starts one step lighter. Weight jumps of more than ${Math.round(BIG_JUMP * 100)}% (common with kettlebells) need two sessions at the top of the range first.`],
+    ['estimate', `Back after ${RETURN_DAYS}+ days with no training: one fewer set on the main lifts and no weight increases that first session. After ${LONG_BREAK_DAYS}+ days away from one exercise it keeps its weight; after ${VERY_LONG_BREAK_DAYS}+ days it starts one step lighter. Weight jumps of more than ${Math.round(BIG_JUMP * 100)}% (common with kettlebells) need two sessions at the top of the range first.`],
     ['estimate', 'Estimated 1-rep max uses the Epley formula and is only shown for sets of 12 reps or fewer. It is a rough guide, not a tested max.'],
   ];
   const prefsRules = [

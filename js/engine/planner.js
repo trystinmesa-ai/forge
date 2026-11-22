@@ -257,7 +257,7 @@ export function plan(history, { familiar = new Map(), swaps = [] } = {}, opts) {
   const sore = (checkin.sore || []).map((r) => REGIONS[r]?.name.toLowerCase()).filter(Boolean);
   if (sore.length) reasons.push(`Sore ${list(sore)}: those muscles are left out or kept light today.`);
   if (pain.length) reasons.push(`Pain reported (${list(pain.map((r) => REGIONS[r]?.name.toLowerCase()))}): anything that loads ${pain.length > 1 ? 'those areas' : 'it'} is left out. Don’t train through pain; if it persists, get it checked.`);
-  if (ctx.returning) reasons.push(`First session in ${daysSince} days: one fewer set on the main lifts to ease back in.`);
+  if (ctx.returning) reasons.push(`First session in ${daysSince} days: one fewer set on the main lifts and no weight increases, to ease back in.`);
   const behind = FOCI[focus].muscles.filter((m) => MUSCLES[m].size === 'large' && state[m].weekSets < 4 && history.length);
   if (behind.length && !ctx.returning && daysSince != null && daysSince < 4) {
     reasons.push(`Behind this week on ${list(behind.map((m) => MUSCLES[m].name.toLowerCase()))}, so those come first.`);
@@ -268,7 +268,7 @@ export function plan(history, { familiar = new Map(), swaps = [] } = {}, opts) {
   const titleParts = [FOCI[focus].name];
   if (profile.id !== 'gym') titleParts.push(profile.name.toLowerCase().includes('only') ? profile.name.replace(/ only$/i, '') : profile.name);
   return {
-    focus, title: titleParts.join(' · '), profileId: profile.id, minutes, estimateMin: estimate, overBudget: over > 3,
+    focus, title: titleParts.join(' · '), daysSince, profileId: profile.id, minutes, estimateMin: estimate, overBudget: over > 3,
     items: kept.map((p) => ({ exerciseId: p.ex.id, slot: p.slot.key, sets: p.sets })),
     warmup: pickWarmup(focus, ctx, minutes),
     ramp,

@@ -32,9 +32,9 @@ export function rxText(ex, sets, style) {
 export const ARROW = { increase: '↑', decrease: '↓', hold: '→', reps: '↗', new: '•' };
 
 /** Short "what weight" text for a preview row, from the progression rules and your real history. */
-async function progressFor(ex, prefs) {
+async function progressFor(ex, prefs, daysSinceAnyWorkout) {
   const hist = await W.exerciseHistory(ex.id);
-  const t = Engine.nextTarget(ex, L.prescription(ex, prefs.progressionStyle), hist.slice(0, 3), prefs, localDate());
+  const t = Engine.nextTarget(ex, L.prescription(ex, prefs.progressionStyle), hist.slice(0, 3), prefs, localDate(), { daysSinceAnyWorkout });
   if (t.decision === 'new') return { t, text: 'New' };
   if (!t.weight) return { t, text: ARROW[t.decision] };
   return { t, text: `${ARROW[t.decision]} ${t.weight} lb` };
@@ -52,16 +52,22 @@ export function planSheet({ go, focus = 'auto' } = {}) {
 
   return sheet((close) => {
     const preview = h('div.stack');
+    let seq = 0;
     const draw = async () => {
+      // Quick taps start several redraws; only the newest one may show or be started.
+      const mine = ++seq;
+      current = null;
       const { when, workout: p } = await Engine.recommend({ prefs, ...input, avoid });
-      current = p;
+      if (mine !== seq) return;
       const rows = await Promise.all(p.items.map(async (it) => {
         const ex = L.exercise(it.exerciseId);
-        const pr = await progressFor(ex, prefs);
+        const pr = await progressFor(ex, prefs, p.daysSince || 0);
         return h('div.item.plan-row',
           h('div.grow', h('div', { style: { fontWeight: 600 } }, ex.name), h('div.sub', `${rxText(ex, it.sets, prefs.progressionStyle)} · ${ex.primary.map((m) => MUSCLES[m]?.name).join(', ')}`)),
           h('span.pill', { class: pr.t.decision === 'increase' ? 'accent' : '', title: pr.t.reason }, pr.text));
       }));
+      if (mine !== seq) return;
+      current = p;
       preview.replaceChildren(...[
         h('div.spread', h('h3', p.title), h('span.pill', { class: p.overBudget ? 'warn' : '' }, icon('clock'), `~${p.estimateMin} min`)),
         when.days > 0 && h('div.banner.soft', `Your next session would normally be ${when.days === 1 ? 'tomorrow' : `in ${when.days} days`}. ${when.reason} Training today is fine; it’s planned around what’s recovered.`),
@@ -100,7 +106,8 @@ export function planSheet({ go, focus = 'auto' } = {}) {
           painNote, notes)),
       preview,
       h('button.btn.primary.block.lg', { onclick: async () => {
-        if (!current?.items.length) { toast('Nothing to start with these settings', { error: true }); return; }
+        if (!current) { toast('Still planning, one moment'); return; }
+        if (!current.items.length) { toast('Nothing to start with these settings', { error: true }); return; }
         try {
           await Engine.startPlan(current, { prefs, checkin: input.checkin });
           close(); go('workout');

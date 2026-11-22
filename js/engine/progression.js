@@ -13,6 +13,7 @@ import { daysBetween } from '../util.js';
 export const LONG_BREAK_DAYS = 14;   // estimate: hold the weight after this long away
 export const VERY_LONG_BREAK_DAYS = 42; // estimate: one step lighter after this long
 export const BIG_JUMP = 0.15;        // a jump of more than 15% needs confirming twice
+export const RETURN_DAYS = 7;        // estimate: first session after this long with no training at all holds weights
 
 /** Next weight up (dir 1) or down (dir -1), using your gym's jumps or the kettlebell sizes you own. */
 export function stepWeight(ex, weight, dir, prefs) {
@@ -43,7 +44,17 @@ const fmtW = (w) => `${w} lb`;
  * Returns { decision, weight, prevWeight, reason, rule } where decision is
  * 'new' | 'increase' | 'hold' | 'decrease' | 'reps'.
  */
-export function nextTarget(ex, rx, history, prefs, today) {
+export function nextTarget(ex, rx, history, prefs, today, { daysSinceAnyWorkout = 0 } = {}) {
+  const t = rawTarget(ex, rx, history, prefs, today);
+  // Back after a week or more off: re-test before adding weight (the rules hold it this one time).
+  if (t.decision === 'increase' && daysSinceAnyWorkout >= RETURN_DAYS) {
+    return { ...t, decision: 'hold', weight: t.prevWeight, rule: 'return',
+      reason: `First workout in ${daysSinceAnyWorkout} days: same weight as last time (${t.prevWeight} lb). It goes up next time if this feels solid.` };
+  }
+  return t;
+}
+
+function rawTarget(ex, rx, history, prefs, today) {
   const last = history[0];
   if (!last || !last.sets.length) {
     return { decision: 'new', weight: null, prevWeight: null, rule: 'new',
