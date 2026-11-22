@@ -35,3 +35,11 @@ export function summary(sessions, today = localDate()) {
   const in28 = sessions.filter((s) => daysBetween(s.date, today) < 28).length;
   return { total: sessions.length, last, daysSinceLast: last ? daysBetween(last.date, today) : null, in7, avgPerWeek4: in28 / 4 };
 }
+
+/** Every personal record so far, oldest first (see stats.records). */
+export async function allRecords() {
+  const { records } = await import('./stats.js');
+  const sessions = new Map((await completedSessions()).map((s) => [s.id, s]));
+  const sets = (await DB.all('sets')).filter((s) => sessions.has(s.sessionId));
+  return records(sets, sessions);
+}

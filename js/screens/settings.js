@@ -7,6 +7,11 @@ import * as Cloud from '../cloud.js';
 import { EQUIPMENT, KB_SIZES_LB } from '../data/taxonomy.js';
 import * as Lookup from '../data/lookup.js';
 import { VERSION } from '../version.js';
+import { RULES } from '../data/programming.js';
+import { SOURCES, BASIS } from '../data/sources.js';
+import { RECOVERY_HOURS } from '../engine/recovery.js';
+import { LONG_BREAK_DAYS, VERY_LONG_BREAK_DAYS, BIG_JUMP } from '../engine/progression.js';
+import { READY, MAX_DAYS_IN_A_ROW } from '../engine/schedule.js';
 
 const row = (label, sub, control) =>
   h('div.item', h('div.grow', h('div', label), sub && h('div.sub', sub)), control);
@@ -38,7 +43,10 @@ export default async function settings({ go, refresh }) {
           ? 'Rep ranges and failure targets fit each exercise: heavier for big lifts, higher reps for isolation.'
           : 'Your 15 / 12 / max-reps sets for most exercises. Heavy barbell lifts still use safer ranges.'),
         seg([['adaptive', 'Exercise-specific'], ['classic', '15 / 12 / max']], p.progressionStyle, (v) => save({ progressionStyle: v }).then(refresh))),
-      row('Rest timer', 'Starts after you complete a set', toggle(p.restTimer, (v) => save({ restTimer: v }), 'Rest timer'))),
+      row('Rest timer', 'Starts after you complete a set', toggle(p.restTimer, (v) => save({ restTimer: v }), 'Rest timer')),
+      h('button.item', { onclick: () => howItWorks() },
+        h('div.grow', h('div', 'How recommendations work'), h('div.sub', 'The rules, how sure we are about each, and the sources')),
+        icon('chevron', 'chev'))),
 
     h('div.section-label', 'Equipment'),
     h('div.list',
@@ -236,4 +244,40 @@ function editKettlebells(refresh) {
 async function reloadEdits() {
   Lookup.setOverrides(await DB.all('overrides'));
   Lookup.setCustom(await DB.all('customEx'));
+}
+
+// ───────── How it works: rules, evidence labels, sources ─────────
+function howItWorks() {
+  const p = Prefs.get();
+  const tag = (basis) => h('span.basis', { class: basis }, BASIS[basis]);
+  const ruleCard = (basis, text, sources = []) => h('div.card',
+    tag(basis),
+    h('p', { style: { margin: '4px 0 0' } }, text),
+    sources.length > 0 && h('div.small.faint', { style: { marginTop: '4px' } }, sources.map((k) => SOURCES[k]?.short).filter(Boolean).join(' · ')));
+  const engine = [
+    ['estimate', `Recovery: about ${RECOVERY_HOURS.large} h for big muscles (legs, chest, back), ${RECOVERY_HOURS.medium} h for medium and ${RECOVERY_HOURS.small} h for small ones, longer after bigger sessions. A session type counts as ready at ${Math.round(READY * 100)}% recovered. Soreness you report overrides this.`],
+    ['estimate', `No more than ${MAX_DAYS_IN_A_ROW} training days in a row. Missed days are never penalized; the next workout simply adapts.`],
+    ['estimate', `After ${LONG_BREAK_DAYS}+ days away an exercise keeps its weight; after ${VERY_LONG_BREAK_DAYS}+ days it starts one step lighter. Weight jumps of more than ${Math.round(BIG_JUMP * 100)}% (common with kettlebells) need two sessions at the top of the range first.`],
+    ['estimate', 'Estimated 1-rep max uses the Epley formula and is only shown for sets of 12 reps or fewer. It is a rough guide, not a tested max.'],
+  ];
+  const prefsRules = [
+    ['preference', `About ${p.targetSessionsPerWeek} sessions a week (your setting). A target, not a schedule.`],
+    ['preference', p.progressionStyle === 'classic'
+      ? 'Progression: your 15 / 12 / max scheme. Last set under 10 → drop 5 lb; 10–15 → same; 15–20 → add 5 lb; over 20 → add weight. Heavy barbell lifts keep exercise-specific ranges.'
+      : 'Progression: exercise-specific double progression. Switch to your 15 / 12 / max scheme under Progression style.'],
+  ];
+  return sheet((close) => h('div.stack',
+    h('h2', 'How recommendations work'),
+    h('p.muted', { style: { margin: 0 } }, 'Workouts are planned by fixed rules, not AI. They use your logged history, your settings and what you report each day. Each rule is labelled by how sure we are:'),
+    h('div.small', tag('guideline'), ' published guidance · ', tag('estimate'), ' a reasonable reading, adjustable · ', tag('preference'), ' your choice'),
+    h('div.section-label', 'Training rules'),
+    RULES.map((r) => ruleCard(r.basis, r.text, r.sources)),
+    h('div.section-label', 'How the planner decides'),
+    engine.map(([b, t]) => ruleCard(b, t)),
+    h('div.banner', h('b', 'Safety: '), 'pain is treated differently from soreness. Anything that loads a painful area is left out. The app never diagnoses and never suggests training through pain; persistent or sharp pain is worth getting checked.'),
+    h('div.section-label', 'Your preferences'),
+    prefsRules.map(([b, t]) => ruleCard(b, t)),
+    h('div.section-label', 'Sources'),
+    h('div.card', h('ol.cues', Object.values(SOURCES).map((src) => h('li.small', src.full)))),
+    h('button.btn.block', { onclick: () => close() }, 'Close')), { label: 'How recommendations work' });
 }

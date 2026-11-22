@@ -56,6 +56,7 @@ export default async function history({ refresh }) {
 
 async function detail(s, refresh) {
   const sets = await Hist.setsForSession(s.id);
+  const prSets = new Map((await Hist.allRecords()).filter((r) => r.sessionId === s.id).map((r) => [r.setId, r]));
   const byEntry = new Map();
   for (const x of sets) { if (!byEntry.has(x.entryId)) byEntry.set(x.entryId, []); byEntry.get(x.entryId).push(x); }
   const regions = (list) => (list || []).map((r) => REGIONS[r]?.name || r).join(', ');
@@ -66,7 +67,8 @@ async function detail(s, refresh) {
     h('div.row', { style: { flexWrap: 'wrap' } },
       s.startedAt && h('span.pill', `Started ${clockTime(s.startedAt)}`),
       s.durationMin != null && h('span.pill', duration(s.durationMin)),
-      h('span.pill', `${sets.filter((x) => x.kind === 'working').length} working sets`)),
+      h('span.pill', `${sets.filter((x) => x.kind === 'working').length} working sets`),
+      prSets.size > 0 && h('span.pill.accent', `${prSets.size} record${prSets.size === 1 ? '' : 's'}`)),
     entries.map((e) => {
       const list = (byEntry.get(e.id) || []).filter((x) => x.completed);
       if (!list.length && !e.skipped) return null;
@@ -77,7 +79,7 @@ async function detail(s, refresh) {
         !list.length && h('div.small.faint', 'Skipped'),
         list.map((x) => h('div.spread.small', { style: { padding: '4px 0' } },
           h('span.muted', x.kind === 'warmup' ? `Warm-up ${++w}` : `Set ${x.idx + 1}`),
-          h('span', fmtSet(x)))));
+          h('span', fmtSet(x), prSets.has(x.id) && h('span.pr-badge', { title: 'Personal record' }, 'PR')))));
     }),
     (s.checkin?.sore?.length || s.checkin?.pain?.length || s.checkin?.notes) && h('div.card',
       h('div.kicker', 'Check-in'),

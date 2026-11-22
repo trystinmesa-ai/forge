@@ -36,7 +36,7 @@ Bump `VERSION` in **both** `js/version.js` and `sw.js`, then commit and push. Ph
 2. **Exercise library**: 140 exercises, muscle maps, alternatives, equipment setups *(done)*
 3. **Workout logging**: log sets with last time beside them, rest timer, replace/skip, resume after closing, exercise history *(done)*
 4. **Training engine**: recommended workout and date, recovery and soreness/pain handling, equipment-strict selection, time budgets, warm-ups, progression rules, regenerate *(done)*
-5. Progress charts, polish
+5. **Progress**: workouts per week and month, strength trends (estimated max), personal records, weekly muscle volume, 4-week trends, “How recommendations work” page *(done)*
 6. Scenario validation (the 15 test cases)
 
 See `docs/DATA.md` for the data model and `docs/ENGINE.md` for how recommendations are made.

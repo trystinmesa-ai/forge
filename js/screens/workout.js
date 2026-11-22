@@ -227,7 +227,8 @@ function finishSheet(session, go) {
         try {
           const done = await W.finishSession(session.id, { notes: notes.value.trim() });
           Timer.stop(); close();
-          toast(`Saved · ${done.durationMin} min`);
+          const prs = (await (await import('../history-read.js')).allRecords()).filter((r) => r.sessionId === session.id);
+          toast(`Saved · ${done.durationMin} min${prs.length ? ` · ${prs.length} new record${prs.length === 1 ? '' : 's'}` : ''}`, { ms: 3500 });
           go('history');
         } catch (e) { toast(e.message, { error: true }); }
       } }, 'Finish & save'),

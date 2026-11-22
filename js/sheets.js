@@ -5,6 +5,9 @@ import * as W from './workout.js';
 import * as Prefs from './prefs.js';
 import { MUSCLES, PATTERNS, LOAD_TYPES } from './data/taxonomy.js';
 import { longDate } from './util.js';
+import * as Stats from './stats.js';
+import * as Chart from './charts.js';
+import * as DB from './db.js';
 
 const muscleList = (ids) => ids.map((m) => MUSCLES[m]?.name || m).join(', ');
 
@@ -51,17 +54,27 @@ export async function exerciseHistorySheet(exerciseId) {
   const ex = L.exercise(exerciseId);
   const hist = await W.exerciseHistory(exerciseId);
   const best = W.bestSet(hist.flatMap((x) => x.sets));
+  const sessions = new Map();
+  for (const x of hist) sessions.set(x.sessionId, { id: x.sessionId, date: x.date });
+  const tl = Stats.timeline(exerciseId, hist.flatMap((x) => x.sets), sessions);
+  const metric = tl[0]?.metric;
+  const unit = metric === 'time' ? ' s' : metric === 'reps' ? '' : ' lb';
+  const recs = Stats.records((await DB.byIndex('sets', 'exerciseId', exerciseId)), sessions);
+  const recIds = new Set(recs.map((r) => r.setId));
   await sheet((close) => h('div.stack',
     h('div', h('div.kicker.faint.small', 'Exercise history'), h('h2', ex?.name || L.exerciseName(exerciseId))),
     hist.length
       ? h('div.stat-grid',
         h('div.stat', h('div.v', hist.length), h('div.l', 'Workouts')),
-        h('div.stat', h('div.v', best ? fmtSet(best) : '–'), h('div.l', 'Best set')),
+        h('div.stat', h('div.v', { style: { fontSize: '19px', whiteSpace: 'nowrap' } }, best ? fmtSet(best) : '–'), h('div.l', 'Best set')),
         h('div.stat', h('div.v', longDate(hist[0].date).split(', ')[1]), h('div.l', 'Last done')))
       : h('div.card.empty', h('p', { style: { margin: 0 } }, 'You haven’t logged this exercise yet.')),
+    tl.length > 1 && h('div.card',
+      h('div.small.faint', { style: { marginBottom: '6px' } }, metric === 'weight' && tl.some((p) => p.e1rm) ? 'Estimated 1-rep max per workout (Epley, an estimate)' : metric === 'weight' ? 'Heaviest weight per workout' : metric === 'reps' ? 'Most reps per workout' : 'Longest set per workout'),
+      Chart.line({ points: tl.map((p) => ({ x: p.date, y: Stats.chartValue(p) })), unit, label: 'Progress over time', height: 140 })),
     hist.map((x) => h('div.card',
       h('div.spread', h('h3', longDate(x.date)), h('span.small.faint', x.title || '')),
-      h('div.set-chips', x.sets.map((s) => h('span.pill', fmtSet(s)))))),
+      h('div.set-chips', x.sets.map((s) => h('span.pill', { class: recIds.has(s.id) ? 'accent' : '' }, fmtSet(s), recIds.has(s.id) ? ' · PR' : ''))))),
     h('p.small.faint', 'Warm-up sets aren’t shown or counted.'),
     h('button.btn.block', { onclick: () => close() }, 'Close')), { label: 'Exercise history' });
 }

@@ -7,6 +7,7 @@ import { daysBetween, addDays, localDate } from '../js/util.js';
 import registerLibrary from './library.tests.js';
 import registerWorkout from './workout.tests.js';
 import registerEngine from './engine.tests.js';
+import registerStats from './stats.tests.js';
 
 const out = document.getElementById('out');
 const results = [];
@@ -173,6 +174,7 @@ describe('Dates & history summary', () => {
 registerLibrary({ describe, it, eq, ok });
 registerWorkout({ describe, it, eq, ok, fresh });
 registerEngine({ describe, it, eq, ok, fresh });
+registerStats({ describe, it, eq, ok, fresh });
 
 // ---------- runner ----------
 (async () => {
