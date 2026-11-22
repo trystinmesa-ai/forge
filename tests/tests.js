@@ -5,6 +5,7 @@ import * as Prefs from '../js/prefs.js';
 import * as Hist from '../js/history-read.js';
 import { daysBetween, addDays, localDate } from '../js/util.js';
 import registerLibrary from './library.tests.js';
+import registerWorkout from './workout.tests.js';
 
 const out = document.getElementById('out');
 const results = [];
@@ -169,6 +170,7 @@ describe('Dates & history summary', () => {
 
 // Library tests live in their own file.
 registerLibrary({ describe, it, eq, ok });
+registerWorkout({ describe, it, eq, ok, fresh });
 
 // ---------- runner ----------
 (async () => {

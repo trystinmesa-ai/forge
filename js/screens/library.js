@@ -6,6 +6,7 @@ import * as Prefs from '../prefs.js';
 import * as L from '../data/lookup.js';
 import { MUSCLES, PATTERNS, EQUIPMENT, CATEGORIES, MOBILITY_AREAS, DIFFICULTY, LOAD_TYPES } from '../data/taxonomy.js';
 import { muscleMap } from '../musclemap.js';
+import { exerciseHistorySheet } from '../sheets.js';
 
 const state = { q: '', group: 'muscle', profile: 'all' };
 
@@ -163,6 +164,9 @@ export async function openExercise(id, onChange = () => {}) {
         h('button.btn', { onclick: async () => { await saveOverride(id, { notes: notes.value.trim() || null }); toast('Notes saved'); } }, 'Save notes')),
 
       h('div.list',
+        h('button.item', { onclick: () => exerciseHistorySheet(ex.id) },
+          h('div.grow', h('div', { style: { fontWeight: 600 } }, 'My history with this exercise'), h('div.sub', 'Every time you’ve logged it')),
+          icon('chevron', 'chev')),
         h('div.item', h('div.grow', h('div', 'Equipment'), h('div.sub', ex.eq.map((e) => EQUIPMENT[e]?.name || e).join(' + ')))),
         h('div.item', h('div.grow', h('div', 'Movement pattern'), h('div.sub', PATTERNS[ex.pattern]?.name))),
         ex.stress.length > 0 && h('div.item', h('div.grow', h('div', 'Loads these areas'), h('div.sub', `${ex.stress.join(', ')}. Swapped out if you report pain there.`))),

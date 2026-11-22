@@ -1,12 +1,15 @@
 // History: month calendar of trained days; tap a day to see its workouts.
-import { h, icon, sheet } from '../ui.js';
+import { h, icon, sheet, confirm, toast } from '../ui.js';
+import * as DB from '../db.js';
+import { REGIONS } from '../data/taxonomy.js';
+import { exerciseHistorySheet, fmtSet } from '../sheets.js';
 import * as Hist from '../history-read.js';
 import { localDate, monthName, longDate, duration, clockTime } from '../util.js';
 import { exerciseName } from '../data/lookup.js';
 
 let view = null; // {y, m, selected} survives re-renders
 
-export default async function history() {
+export default async function history({ refresh }) {
   const sessions = await Hist.completedSessions();
   const map = Hist.byDate(sessions);
   const t = localDate();
@@ -40,7 +43,7 @@ export default async function history() {
         cal),
       h('div.section-label', longDate(view.selected)),
       daySessions.length
-        ? h('div.list', daySessions.map((s) => h('button.item', { onclick: () => detail(s) },
+        ? h('div.list', daySessions.map((s) => h('button.item', { onclick: () => detail(s, refresh) },
           h('div.grow', h('div', { style: { fontWeight: 650 } }, s.title || 'Workout'),
             h('div.sub', [s.startedAt && clockTime(s.startedAt), s.durationMin != null && duration(s.durationMin), (() => { const n = (s.entries || []).length; return `${n} exercise${n === 1 ? '' : 's'}`; })()].filter(Boolean).join(' · '))),
           icon('chevron', 'chev'))))
@@ -51,25 +54,42 @@ export default async function history() {
   return root;
 }
 
-async function detail(s) {
+async function detail(s, refresh) {
   const sets = await Hist.setsForSession(s.id);
   const byEntry = new Map();
   for (const x of sets) { if (!byEntry.has(x.entryId)) byEntry.set(x.entryId, []); byEntry.get(x.entryId).push(x); }
+  const regions = (list) => (list || []).map((r) => REGIONS[r]?.name || r).join(', ');
+  const entries = (s.entries || []).slice().sort((a, b) => a.order - b.order);
+  let deleted = false;
   await sheet((close) => h('div.stack',
     h('div', h('div.kicker.faint.small', longDate(s.date)), h('h2', s.title || 'Workout')),
     h('div.row', { style: { flexWrap: 'wrap' } },
       s.startedAt && h('span.pill', `Started ${clockTime(s.startedAt)}`),
-      s.durationMin != null && h('span.pill', duration(s.durationMin))),
-    (s.entries || []).map((e) => {
+      s.durationMin != null && h('span.pill', duration(s.durationMin)),
+      h('span.pill', `${sets.filter((x) => x.kind === 'working').length} working sets`)),
+    entries.map((e) => {
       const list = (byEntry.get(e.id) || []).filter((x) => x.completed);
+      if (!list.length && !e.skipped) return null;
+      let w = 0;
       return h('div.card',
-        h('h3', exerciseName(e.exerciseId)),
-        e.skipped && h('div.small.faint', 'Skipped'),
+        h('button.entry-name', { onclick: () => exerciseHistorySheet(e.exerciseId) }, exerciseName(e.exerciseId)),
+        e.replacedFrom && h('div.small.faint', `Replaced ${exerciseName(e.replacedFrom)}`),
+        !list.length && h('div.small.faint', 'Skipped'),
         list.map((x) => h('div.spread.small', { style: { padding: '4px 0' } },
-          h('span.muted', x.kind === 'warmup' ? 'Warm-up' : `Set ${x.idx + 1}`),
-          h('span', x.weight != null ? `${x.weight} lb × ${x.reps}` : `${x.reps} reps`))));
+          h('span.muted', x.kind === 'warmup' ? `Warm-up ${++w}` : `Set ${x.idx + 1}`),
+          h('span', fmtSet(x)))));
     }),
-    s.checkin?.notes && h('p.muted.small', `Check-in: ${s.checkin.notes}`),
-    s.notes && h('p.muted', s.notes),
-    h('button.btn.block', { onclick: () => close() }, 'Close')), { label: 'Workout details' });
+    (s.checkin?.sore?.length || s.checkin?.pain?.length || s.checkin?.notes) && h('div.card',
+      h('div.kicker', 'Check-in'),
+      s.checkin.sore?.length > 0 && h('div.small', h('span.muted', 'Sore: '), regions(s.checkin.sore)),
+      s.checkin.pain?.length > 0 && h('div.small', h('span.muted', 'Pain/discomfort: '), regions(s.checkin.pain)),
+      s.checkin.notes && h('div.small.muted', s.checkin.notes)),
+    s.notes && h('div.card', h('div.kicker', 'Notes'), h('p', { style: { margin: 0 } }, s.notes)),
+    h('p.small.faint', { style: { margin: 0 } }, 'Tap an exercise to see its full history.'),
+    h('button.btn.block', { onclick: () => close() }, 'Close'),
+    h('button.btn.ghost.block', { style: { color: 'var(--danger)' }, onclick: async () => {
+      if (!(await confirm('Delete this workout?', `${longDate(s.date)}: all of its sets will be permanently deleted${' '}(also from your account if you sync). Export a backup first if unsure.`, { ok: 'Delete workout', danger: true }))) return;
+      await DB.deleteSession(s.id); deleted = true; close();
+    } }, 'Delete workout')), { label: 'Workout details' });
+  if (deleted) { toast('Workout deleted'); refresh(); }
 }

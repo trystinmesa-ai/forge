@@ -9,6 +9,8 @@ import history from './screens/history.js';
 import library from './screens/library.js';
 import progress from './screens/progress.js';
 import settings from './screens/settings.js';
+import workout from './screens/workout.js';
+import * as Timer from './timer.js';
 
 export { VERSION } from './version.js';
 
@@ -18,7 +20,7 @@ const TABS = [
   { id: 'library', label: 'Library', icon: 'library', render: library },
   { id: 'progress', label: 'Progress', icon: 'progress', render: progress },
 ];
-const ROUTES = { ...Object.fromEntries(TABS.map((t) => [t.id, t.render])), settings };
+const ROUTES = { ...Object.fromEntries(TABS.map((t) => [t.id, t.render])), settings, workout };
 
 const app = document.getElementById('app');
 
@@ -33,7 +35,8 @@ let renderToken = 0;
 export async function render() {
   const { route, args } = current();
   const token = ++renderToken;
-  const tabRoute = route === 'settings' ? 'today' : route;
+  const tabRoute = route === 'settings' || route === 'workout' ? 'today' : route;
+  document.body.classList.toggle('in-workout', route === 'workout');
   for (const a of document.querySelectorAll('.tabbar a')) {
     if (a.dataset.id === tabRoute) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
@@ -90,6 +93,7 @@ async function start() {
   persistStorage();
   window.addEventListener('hashchange', render);
   await render();
+  Timer.resume();
   Cloud.init({ onRemote: async () => { await Prefs.load(); await loadLibraryEdits(); render(); toast('Synced from your account'); } });
   Cloud.subscribe(() => { if (current().route === "settings") render(); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:' && !new URLSearchParams(location.search).has('nosw')) {

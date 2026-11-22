@@ -1,12 +1,15 @@
-// Today: last workout, time since training, recent days, and (from Phase 4) the recommendation.
-import { h, icon, sheet } from '../ui.js';
+// Today: resume or start a workout, last workout, time since training, recent days.
+// The recommendation (what to train and when) arrives with the planner in Phase 4.
+import { h, icon, sheet, toast } from '../ui.js';
 import * as Hist from '../history-read.js';
-import { localDate, longDate, relativeDays, weekday, duration } from '../util.js';
+import * as W from '../workout.js';
+import { localDate, longDate, shortDate, relativeDays, weekday, duration, daysBetween } from '../util.js';
 import * as Prefs from '../prefs.js';
+import * as DB from '../db.js';
 
 export default async function today({ go }) {
   const sessions = await Hist.completedSessions();
-  const active = await Hist.activeSession();
+  const active = await W.activeSession();
   const sum = Hist.summary(sessions);
   const t = localDate();
   const prefs = Prefs.get();
@@ -15,26 +18,32 @@ export default async function today({ go }) {
     h('div', h('div.eyebrow', longDate(t)), h('h1', 'Today')),
     h('button.icon-btn', { 'aria-label': 'Settings', onclick: () => go('settings') }, icon('settings')));
 
-  const resume = active && h('div.card', { style: { borderColor: 'var(--accent)' } },
-    h('div.kicker', 'Workout in progress'),
-    h('h3', active.title || 'Unfinished workout'),
-    h('p.muted.small', `Started ${longDate(active.date)}. Everything you logged is saved.`),
-    h('button.btn.primary.block', { disabled: true }, 'Resume (arrives in Phase 3)'));
+  let resume = null;
+  if (active) {
+    const sets = await DB.byIndex('sets', 'sessionId', active.id);
+    const done = sets.filter((s) => s.completed && s.kind === 'working').length;
+    const startedAgo = daysBetween(active.date, t);
+    resume = h('div.card.hero.stack', { style: { borderColor: 'var(--accent)' } },
+      h('div.kicker', 'Workout in progress'),
+      h('h2', active.title || 'Workout'),
+      h('p.muted', { style: { margin: 0 } }, `${done} set${done === 1 ? '' : 's'} logged · started ${startedAgo ? `${relativeDays(startedAgo)}` : `at ${new Date(active.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}. Everything you’ve logged is saved.`),
+      h('button.btn.primary.block.lg', { onclick: () => go('workout') }, 'Resume workout'));
+  }
 
-  const hero = h('div.card.hero.stack',
+  const hero = !active && h('div.card.hero.stack',
     h('div.kicker', 'Next session'),
     sum.total
       ? h('h2', sum.daysSinceLast === 0 ? 'You trained today' : `Last trained ${relativeDays(sum.daysSinceLast)}`)
       : h('h2', 'Ready when you are'),
     h('p.muted', { style: { margin: 0 } }, sum.total
-      ? 'Recommendations will use your full history once the training engine is built.'
+      ? 'Workout recommendations from your history arrive in Phase 4. For now, build your own or repeat a past workout.'
       : 'Log your first workout and the app starts learning your strength levels. It never guesses weights you haven’t lifted.'),
-    h('button.btn.primary.block.lg', { onclick: () => planSheet(prefs) }, icon('bolt'), 'Plan today’s workout'));
+    h('button.btn.primary.block.lg', { onclick: () => startSheet(sessions, go) }, icon('bolt'), 'Start a workout'));
 
-  const last = sum.last && h('div.card',
+  const last = sum.last && h('button.card.card-btn', { onclick: () => go('history') },
     h('div.kicker', 'Most recent workout'),
     h('div.spread',
-      h('div', h('h3', sum.last.title || 'Workout'), h('div.muted.small', `${weekday(sum.last.date)} · ${relativeDays(sum.daysSinceLast)}`)),
+      h('div', h('h3', sum.last.title || 'Workout'), h('div.muted.small', `${weekday(sum.last.date)} · ${relativeDays(sum.daysSinceLast)} · ${(sum.last.entries || []).filter((e) => !e.skipped).length} exercises`)),
       sum.last.durationMin != null && h('span.pill', icon('clock'), duration(sum.last.durationMin))));
 
   const days = Hist.lastDays(sessions, 7, t);
@@ -48,12 +57,23 @@ export default async function today({ go }) {
   return h('div', head, h('div.stack', resume, hero, last, recent));
 }
 
-function planSheet(prefs) {
+function startSheet(sessions, go) {
+  const prefs = Prefs.get();
+  const begin = async (fn) => {
+    try { await fn(); go('workout'); } catch (e) { toast(e.message, { error: true }); }
+  };
   return sheet((close) => h('div.stack',
-    h('h2', 'Coming in Phase 4'),
-    h('p.muted', { style: { margin: 0 } },
-      'This is where you’ll tell the app how much time you have, what equipment is available, and anything that’s sore. ',
-      'It will then build a workout from your history. The foundation (storage, backup, sync, navigation) is what’s being built right now.'),
-    h('p.small.faint', `Your defaults: ${prefs.defaultMinutes} min · ${prefs.profiles.find((p) => p.id === prefs.defaultProfile)?.name || 'Full gym'}. Change them in Settings.`),
-    h('button.btn.block', { onclick: () => close() }, 'OK')), { label: 'Plan today’s workout' });
+    h('h2', 'Start a workout'),
+    h('div.list',
+      h('div.item', { style: { opacity: 0.55 } }, icon('bolt', 'chev'),
+        h('div.grow', h('div', 'Recommended for today'), h('div.sub', 'Built from your history, recovery, time and equipment. Arrives in Phase 4.'))),
+      h('button.item', { onclick: () => { close(); begin(() => W.startSession({ title: 'Workout', prefs })); } },
+        h('span.add-plus', '+'), h('div.grow', h('div', { style: { fontWeight: 600 } }, 'Build my own'), h('div.sub', 'Start empty and add exercises from the library')))),
+    sessions.length > 0 && h('div',
+      h('div.section-label', 'Repeat a past workout'),
+      h('div.list', sessions.slice(0, 8).map((s) => h('button.item', { onclick: () => { close(); begin(() => W.repeatSession(s.id, prefs)); } },
+        h('div.grow', h('div', { style: { fontWeight: 600 } }, s.title || 'Workout'),
+          h('div.sub', `${shortDate(s.date)} · ${(s.entries || []).filter((e) => !e.skipped).length} exercises`)),
+        icon('chevron', 'chev'))))),
+    h('button.btn.ghost.block', { onclick: () => close() }, 'Cancel')), { label: 'Start a workout' });
 }
